@@ -1,0 +1,469 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      draft_picks: {
+        Row: {
+          created_at: string
+          current_team_id: string
+          id: string
+          is_keeper: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number: number | null
+          picked_at: string | null
+          player_id: string | null
+          round: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          current_team_id: string
+          id?: string
+          is_keeper?: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number?: number | null
+          picked_at?: string | null
+          player_id?: string | null
+          round: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          current_team_id?: string
+          id?: string
+          is_keeper?: boolean | null
+          league_id?: string
+          original_team_id?: string
+          pick_number?: number | null
+          picked_at?: string | null
+          player_id?: string | null
+          round?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_picks_current_team_id_fkey"
+            columns: ["current_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_picks_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_picks_original_team_id_fkey"
+            columns: ["original_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_picks_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      keepers: {
+        Row: {
+          created_at: string
+          id: string
+          player_id: string
+          round_cost: number
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          player_id: string
+          round_cost?: number
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          player_id?: string
+          round_cost?: number
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keepers_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keepers_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leagues: {
+        Row: {
+          bench_slots: number
+          created_at: string
+          current_pick: number | null
+          current_round: number | null
+          def_slots: number
+          draft_status: string
+          draft_time_seconds: number
+          flex_slots: number
+          id: string
+          k_slots: number
+          name: string
+          num_rounds: number
+          num_teams: number
+          qb_slots: number
+          rb_slots: number
+          te_slots: number
+          updated_at: string
+          wr_slots: number
+        }
+        Insert: {
+          bench_slots?: number
+          created_at?: string
+          current_pick?: number | null
+          current_round?: number | null
+          def_slots?: number
+          draft_status?: string
+          draft_time_seconds?: number
+          flex_slots?: number
+          id?: string
+          k_slots?: number
+          name: string
+          num_rounds?: number
+          num_teams?: number
+          qb_slots?: number
+          rb_slots?: number
+          te_slots?: number
+          updated_at?: string
+          wr_slots?: number
+        }
+        Update: {
+          bench_slots?: number
+          created_at?: string
+          current_pick?: number | null
+          current_round?: number | null
+          def_slots?: number
+          draft_status?: string
+          draft_time_seconds?: number
+          flex_slots?: number
+          id?: string
+          k_slots?: number
+          name?: string
+          num_rounds?: number
+          num_teams?: number
+          qb_slots?: number
+          rb_slots?: number
+          te_slots?: number
+          updated_at?: string
+          wr_slots?: number
+        }
+        Relationships: []
+      }
+      pick_trades: {
+        Row: {
+          draft_pick_id: string
+          from_team_id: string
+          id: string
+          league_id: string
+          to_team_id: string
+          traded_at: string
+        }
+        Insert: {
+          draft_pick_id: string
+          from_team_id: string
+          id?: string
+          league_id: string
+          to_team_id: string
+          traded_at?: string
+        }
+        Update: {
+          draft_pick_id?: string
+          from_team_id?: string
+          id?: string
+          league_id?: string
+          to_team_id?: string
+          traded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pick_trades_draft_pick_id_fkey"
+            columns: ["draft_pick_id"]
+            isOneToOne: false
+            referencedRelation: "draft_picks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_trades_from_team_id_fkey"
+            columns: ["from_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_trades_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_trades_to_team_id_fkey"
+            columns: ["to_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      players: {
+        Row: {
+          first_name: string | null
+          full_name: string
+          id: string
+          last_name: string | null
+          position: string | null
+          search_rank: number | null
+          status: string | null
+          team: string | null
+          updated_at: string
+          years_exp: number | null
+        }
+        Insert: {
+          first_name?: string | null
+          full_name: string
+          id: string
+          last_name?: string | null
+          position?: string | null
+          search_rank?: number | null
+          status?: string | null
+          team?: string | null
+          updated_at?: string
+          years_exp?: number | null
+        }
+        Update: {
+          first_name?: string | null
+          full_name?: string
+          id?: string
+          last_name?: string | null
+          position?: string | null
+          search_rank?: number | null
+          status?: string | null
+          team?: string | null
+          updated_at?: string
+          years_exp?: number | null
+        }
+        Relationships: []
+      }
+      players_last_sync: {
+        Row: {
+          id: number
+          synced_at: string
+        }
+        Insert: {
+          id?: number
+          synced_at?: string
+        }
+        Update: {
+          id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      teams: {
+        Row: {
+          created_at: string
+          draft_position: number
+          id: string
+          league_id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          draft_position: number
+          id?: string
+          league_id: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          draft_position?: number
+          id?: string
+          league_id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

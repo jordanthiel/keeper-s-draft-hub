@@ -1,20 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { League } from '@/lib/types';
-import { useUpdateLeague } from '@/hooks/useLeague';
+import { useLeagueSettings, useUpdateLeagueSettings } from '@/hooks/useLeague';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, Save } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface LeagueSettingsProps {
   league: League;
+  year: number;
 }
 
-export function LeagueSettings({ league }: LeagueSettingsProps) {
-  const updateLeague = useUpdateLeague();
+export function LeagueSettings({ league, year }: LeagueSettingsProps) {
+  const { data: settings, isLoading } = useLeagueSettings(league.id, year);
+  const updateSettings = useUpdateLeagueSettings();
+  
   const [formData, setFormData] = useState({
-    name: league.name,
     num_teams: league.num_teams,
     num_rounds: league.num_rounds,
     draft_time_seconds: league.draft_time_seconds,
@@ -22,16 +25,36 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
     rb_slots: league.rb_slots,
     wr_slots: league.wr_slots,
     te_slots: league.te_slots,
-    flex_slots: league.flex_slots,
     k_slots: league.k_slots,
     def_slots: league.def_slots,
-    bench_slots: league.bench_slots,
+    dp_slots: league.dp_slots ?? 0,
+    num_keepers: 0,
   });
+
+  // Update form data when settings load
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        num_teams: settings.num_teams,
+        num_rounds: settings.num_rounds,
+        draft_time_seconds: settings.draft_time_seconds,
+        qb_slots: settings.qb_slots,
+        rb_slots: settings.rb_slots,
+        wr_slots: settings.wr_slots,
+        te_slots: settings.te_slots,
+        k_slots: settings.k_slots,
+        def_slots: settings.def_slots,
+        dp_slots: settings.dp_slots ?? 0,
+        num_keepers: settings.num_keepers ?? 0,
+      });
+    }
+  }, [settings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateLeague.mutateAsync({
-      id: league.id,
+    await updateSettings.mutateAsync({
+      leagueId: league.id,
+      year: year,
       ...formData,
     });
   };
@@ -40,11 +63,20 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       <div className="flex items-center gap-3">
         <Settings className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-display">League Settings</h2>
+        <h2 className="text-2xl font-display">League Settings for {year}</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -53,13 +85,6 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
             <CardTitle>General</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-2 md:col-span-2">
-              <Label>League Name</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-              />
-            </div>
             <div className="space-y-2">
               <Label>Number of Teams</Label>
               <Input
@@ -98,7 +123,7 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
           <CardHeader>
             <CardTitle>Roster Slots</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
+          <CardContent className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-7">
             <div className="space-y-2">
               <Label className="text-position-qb">QB</Label>
               <Input
@@ -140,16 +165,6 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>FLEX</Label>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                value={formData.flex_slots}
-                onChange={(e) => handleChange('flex_slots', parseInt(e.target.value))}
-              />
-            </div>
-            <div className="space-y-2">
               <Label className="text-position-k">K</Label>
               <Input
                 type="number"
@@ -170,23 +185,55 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>Bench</Label>
+              <Label className="text-position-dp">DP</Label>
               <Input
                 type="number"
                 min={0}
-                max={15}
-                value={formData.bench_slots}
-                onChange={(e) => handleChange('bench_slots', parseInt(e.target.value))}
+                max={10}
+                value={formData.dp_slots}
+                onChange={(e) => handleChange('dp_slots', parseInt(e.target.value))}
               />
             </div>
           </CardContent>
         </Card>
 
-        <Button type="submit" size="lg" disabled={updateLeague.isPending}>
-          <Save className="h-4 w-4 mr-2" />
-          {updateLeague.isPending ? 'Saving...' : 'Save Settings'}
-        </Button>
+        <Card className="glass">
+          <CardHeader>
+            <CardTitle>Keeper Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
+              <Label>Number of Keepers</Label>
+              <Input
+                type="number"
+                min={0}
+                max={10}
+                value={formData.num_keepers}
+                onChange={(e) => handleChange('num_keepers', parseInt(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Maximum number of keepers per team for this year
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </form>
+
+      {/* Sticky Save Button */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-border p-4">
+        <div className="container max-w-7xl mx-auto">
+          <Button 
+            type="submit" 
+            size="lg" 
+            disabled={updateSettings.isPending}
+            onClick={handleSubmit}
+            className="w-full sm:w-auto"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {updateSettings.isPending ? 'Saving...' : 'Save Settings'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

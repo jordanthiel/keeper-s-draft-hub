@@ -43,6 +43,7 @@
     --te: 280 70% 60%;
     --k: 320 70% 55%;
     --def: 25 80% 50%;
+    --dp: 15 80% 50%;
 
     /* Draft board specific */
     --draft-current: 142 70% 45%;
@@ -111,6 +112,7 @@
   .position-te { @apply bg-[hsl(var(--te))] text-foreground; }
   .position-k { @apply bg-[hsl(var(--k))] text-foreground; }
   .position-def { @apply bg-[hsl(var(--def))] text-background; }
+  .position-dp { @apply bg-[hsl(var(--dp))] text-background; }
 
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50;

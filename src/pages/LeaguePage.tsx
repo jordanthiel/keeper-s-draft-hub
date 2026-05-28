@@ -1,21 +1,35 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useLeague, useTeams, useInitializeDraftPicks, useDraftPicks } from '@/hooks/useLeague';
+import { useLeague, useTeams, useInitializeDraftPicks, useDraftPicks, useLeagueSettings } from '@/hooks/useLeague';
 import { DraftBoard } from '@/components/DraftBoard';
 import { TeamManager } from '@/components/TeamManager';
 import { LeagueSettings } from '@/components/LeagueSettings';
 import { PickTrader } from '@/components/PickTrader';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, LayoutGrid, Users, Settings, ArrowLeftRight, Play } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ArrowLeft, LayoutGrid, Users, Settings, ArrowLeftRight, Play, Calendar } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function LeaguePage() {
   const { id } = useParams<{ id: string }>();
   const { data: league, isLoading: leagueLoading } = useLeague(id);
   const { data: teams = [], isLoading: teamsLoading } = useTeams(id);
-  const currentYear = new Date().getFullYear();
-  const { data: picks = [] } = useDraftPicks(id, currentYear);
+  const currentYearValue = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYearValue);
+  const { data: picks = [] } = useDraftPicks(id, selectedYear);
+  const { data: settings } = useLeagueSettings(id, selectedYear);
   const initializePicks = useInitializeDraftPicks();
+  
+  // Use year-specific settings, fallback to league defaults
+  const numRounds = settings?.num_rounds ?? league?.num_rounds ?? 15;
+  const numTeams = settings?.num_teams ?? league?.num_teams ?? 12;
 
   const isLoading = leagueLoading || teamsLoading;
 
@@ -53,10 +67,16 @@ export default function LeaguePage() {
     await initializePicks.mutateAsync({
       leagueId: league.id,
       teams,
-      numRounds: league.num_rounds,
-      year: currentYear,
+      numRounds: numRounds,
+      year: selectedYear,
     });
   };
+
+  // Generate year options (current year and 5 years before/after)
+  const yearOptions = [];
+  for (let i = currentYearValue - 5; i <= currentYearValue + 5; i++) {
+    yearOptions.push(i);
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -73,21 +93,39 @@ export default function LeaguePage() {
               <div>
                 <h1 className="text-2xl font-display">{league.name}</h1>
                 <p className="text-sm text-muted-foreground">
-                  {teams.length}/{league.num_teams} teams • {league.num_rounds} rounds
+                  {teams.length}/{numTeams} teams • {numRounds} rounds
                 </p>
               </div>
             </div>
 
-            {canInitializeDraft && (
-              <Button 
-                onClick={handleInitializeDraft}
-                disabled={initializePicks.isPending}
-                className="glow-primary"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft Picks'}
-              </Button>
-            )}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value, 10))}>
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yearOptions.map(year => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {canInitializeDraft && (
+                <Button 
+                  onClick={handleInitializeDraft}
+                  disabled={initializePicks.isPending}
+                  className="glow-primary"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft Picks'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -132,20 +170,20 @@ export default function LeaguePage() {
                 )}
               </div>
             ) : (
-              <DraftBoard league={league} teams={teams} />
+              <DraftBoard league={league} teams={teams} year={selectedYear} />
             )}
           </TabsContent>
 
           <TabsContent value="teams">
-            <TeamManager league={league} teams={teams} />
+            <TeamManager league={league} teams={teams} year={selectedYear} />
           </TabsContent>
 
           <TabsContent value="trades">
-            <PickTrader league={league} teams={teams} />
+            <PickTrader league={league} teams={teams} year={selectedYear} />
           </TabsContent>
 
           <TabsContent value="settings">
-            <LeagueSettings league={league} />
+            <LeagueSettings league={league} year={selectedYear} />
           </TabsContent>
         </Tabs>
       </main>

@@ -12,44 +12,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { TradeHistory } from '@/components/TradeHistory';
 
 interface PickTraderProps {
   league: League;
   teams: Team[];
+  year: number;
 }
 
-export function PickTrader({ league, teams }: PickTraderProps) {
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
+export function PickTrader({ league, teams, year }: PickTraderProps) {
   const [fromTeamId, setFromTeamId] = useState<string>('');
   const [toTeamId, setToTeamId] = useState<string>('');
   const [selectedPickId, setSelectedPickId] = useState<string>('');
+  const [returnPickId, setReturnPickId] = useState<string>('');
 
-  const { data: picks = [] } = useDraftPicks(league.id, selectedYear);
+  const { data: picks = [] } = useDraftPicks(league.id, year);
   const tradePick = useTradePick();
 
   // Filter picks owned by the "from" team that haven't been used yet
   const availablePicks = picks.filter(p => 
     p.current_team_id === fromTeamId && 
     !p.player_id &&
-    p.current_team_id !== toTeamId
+    p.id !== returnPickId
+  );
+
+  // Filter picks owned by the "to" team that haven't been used yet (for return pick)
+  const availableReturnPicks = picks.filter(p => 
+    p.current_team_id === toTeamId && 
+    !p.player_id &&
+    p.id !== selectedPickId
   );
 
   const handleTrade = async () => {
-    if (!selectedPickId || !fromTeamId || !toTeamId) return;
+    if (!selectedPickId || !returnPickId || !fromTeamId || !toTeamId) return;
 
     await tradePick.mutateAsync({
       pickId: selectedPickId,
+      returnPickId: returnPickId,
       fromTeamId,
       toTeamId,
       leagueId: league.id,
-      year: selectedYear,
+      year: year,
     });
 
     setSelectedPickId('');
+    setReturnPickId('');
   };
-
-  const years = [currentYear, currentYear + 1, currentYear + 2];
 
   return (
     <div className="space-y-6">
@@ -60,29 +68,18 @@ export function PickTrader({ league, teams }: PickTraderProps) {
 
       <Card className="glass">
         <CardHeader>
-          <CardTitle>Execute Trade</CardTitle>
+          <CardTitle>Execute Trade ({year})</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label>Year</Label>
-            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map(year => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="grid gap-4 md:grid-cols-[1fr,auto,1fr]">
             <div className="space-y-2">
               <Label>From Team</Label>
-              <Select value={fromTeamId} onValueChange={setFromTeamId}>
+              <Select value={fromTeamId} onValueChange={(value) => {
+                setFromTeamId(value);
+                setSelectedPickId('');
+                setReturnPickId('');
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select team..." />
                 </SelectTrigger>
@@ -102,7 +99,11 @@ export function PickTrader({ league, teams }: PickTraderProps) {
 
             <div className="space-y-2">
               <Label>To Team</Label>
-              <Select value={toTeamId} onValueChange={setToTeamId}>
+              <Select value={toTeamId} onValueChange={(value) => {
+                setToTeamId(value);
+                setSelectedPickId('');
+                setReturnPickId('');
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select team..." />
                 </SelectTrigger>
@@ -118,35 +119,71 @@ export function PickTrader({ league, teams }: PickTraderProps) {
           </div>
 
           {fromTeamId && toTeamId && (
-            <div className="space-y-2">
-              <Label>Select Pick to Trade</Label>
-              <Select value={selectedPickId} onValueChange={setSelectedPickId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select pick..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePicks.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      No available picks
-                    </SelectItem>
-                  ) : (
-                    availablePicks.map(pick => {
-                      const originalTeam = teams.find(t => t.id === pick.original_team_id);
-                      return (
-                        <SelectItem key={pick.id} value={pick.id}>
-                          Round {pick.round} - Originally {originalTeam?.name || 'Unknown'}
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                Each team must give a pick to keep the number of picks even.
+              </div>
+              <div className="grid gap-4 md:grid-cols-[1fr,auto,1fr]">
+                <div className="space-y-2">
+                  <Label>{teams.find(t => t.id === fromTeamId)?.name || 'From Team'} gives</Label>
+                  <Select value={selectedPickId} onValueChange={setSelectedPickId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select pick to trade..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availablePicks.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No available picks
                         </SelectItem>
-                      );
-                    })
-                  )}
-                </SelectContent>
-              </Select>
+                      ) : (
+                        availablePicks.map(pick => {
+                          const originalTeam = teams.find(t => t.id === pick.original_team_id);
+                          return (
+                            <SelectItem key={pick.id} value={pick.id}>
+                              Round {pick.round} - Originally {originalTeam?.name || 'Unknown'}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-center">
+                  <ArrowLeftRight className="h-6 w-6 text-muted-foreground" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{teams.find(t => t.id === toTeamId)?.name || 'To Team'} gives</Label>
+                  <Select value={returnPickId} onValueChange={setReturnPickId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select return pick..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableReturnPicks.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No available picks
+                        </SelectItem>
+                      ) : (
+                        availableReturnPicks.map(pick => {
+                          const originalTeam = teams.find(t => t.id === pick.original_team_id);
+                          return (
+                            <SelectItem key={pick.id} value={pick.id}>
+                              Round {pick.round} - Originally {originalTeam?.name || 'Unknown'}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           )}
 
           <Button 
             onClick={handleTrade} 
-            disabled={!selectedPickId || tradePick.isPending}
+            disabled={!selectedPickId || !returnPickId || tradePick.isPending}
             className="w-full"
           >
             <ArrowLeftRight className="h-4 w-4 mr-2" />
@@ -155,7 +192,7 @@ export function PickTrader({ league, teams }: PickTraderProps) {
         </CardContent>
       </Card>
 
-      {/* Trade History would go here */}
+      <TradeHistory leagueId={league.id} teams={teams} />
     </div>
   );
 }

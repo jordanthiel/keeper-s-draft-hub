@@ -8,10 +8,9 @@ export interface League {
   rb_slots: number;
   wr_slots: number;
   te_slots: number;
-  flex_slots: number;
   k_slots: number;
   def_slots: number;
-  bench_slots: number;
+  dp_slots: number;
   current_pick: number;
   current_round: number;
   draft_status: 'not_started' | 'in_progress' | 'completed';
@@ -44,7 +43,6 @@ export interface Keeper {
   id: string;
   team_id: string;
   player_id: string;
-  round_cost: number;
   created_at: string;
   player?: Player;
 }
@@ -73,9 +71,12 @@ export interface PickTrade {
   to_team_id: string;
   draft_pick_id: string;
   traded_at: string;
+  draft_pick?: DraftPick;
+  from_team?: Team;
+  to_team?: Team;
 }
 
-export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
+export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF' | 'DP';
 
 export const POSITION_COLORS: Record<Position, string> = {
   QB: 'position-qb',
@@ -84,4 +85,5 @@ export const POSITION_COLORS: Record<Position, string> = {
   TE: 'position-te',
   K: 'position-k',
   DEF: 'position-def',
+  DP: 'position-dp',
 };

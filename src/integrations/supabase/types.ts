@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -85,26 +105,64 @@ export type Database = {
           },
         ]
       }
+      draft_state: {
+        Row: {
+          created_at: string
+          current_pick: number | null
+          current_round: number | null
+          draft_status: string
+          id: string
+          league_id: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          current_pick?: number | null
+          current_round?: number | null
+          draft_status?: string
+          id?: string
+          league_id: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          current_pick?: number | null
+          current_round?: number | null
+          draft_status?: string
+          id?: string
+          league_id?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_state_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keepers: {
         Row: {
           created_at: string
           id: string
           player_id: string
-          round_cost: number
           team_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           player_id: string
-          round_cost?: number
           team_id: string
         }
         Update: {
           created_at?: string
           id?: string
           player_id?: string
-          round_cost?: number
           team_id?: string
         }
         Relationships: [
@@ -124,18 +182,90 @@ export type Database = {
           },
         ]
       }
+      league_settings: {
+        Row: {
+          created_at: string
+          db_slots: number
+          def_slots: number
+          dl_slots: number
+          draft_time_seconds: number
+          id: string
+          k_slots: number
+          lb_slots: number
+          league_id: string
+          num_keepers: number
+          num_rounds: number
+          num_teams: number
+          qb_slots: number
+          rb_slots: number
+          te_slots: number
+          updated_at: string
+          wr_slots: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          db_slots?: number
+          def_slots?: number
+          dl_slots?: number
+          draft_time_seconds?: number
+          id?: string
+          k_slots?: number
+          lb_slots?: number
+          league_id: string
+          num_keepers?: number
+          num_rounds?: number
+          num_teams?: number
+          qb_slots?: number
+          rb_slots?: number
+          te_slots?: number
+          updated_at?: string
+          wr_slots?: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          db_slots?: number
+          def_slots?: number
+          dl_slots?: number
+          draft_time_seconds?: number
+          id?: string
+          k_slots?: number
+          lb_slots?: number
+          league_id?: string
+          num_keepers?: number
+          num_rounds?: number
+          num_teams?: number
+          qb_slots?: number
+          rb_slots?: number
+          te_slots?: number
+          updated_at?: string
+          wr_slots?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_settings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leagues: {
         Row: {
-          bench_slots: number
           created_at: string
           current_pick: number | null
           current_round: number | null
+          db_slots: number
           def_slots: number
+          dl_slots: number
           draft_status: string
           draft_time_seconds: number
-          flex_slots: number
           id: string
           k_slots: number
+          lb_slots: number
           name: string
           num_rounds: number
           num_teams: number
@@ -146,16 +276,17 @@ export type Database = {
           wr_slots: number
         }
         Insert: {
-          bench_slots?: number
           created_at?: string
           current_pick?: number | null
           current_round?: number | null
+          db_slots?: number
           def_slots?: number
+          dl_slots?: number
           draft_status?: string
           draft_time_seconds?: number
-          flex_slots?: number
           id?: string
           k_slots?: number
+          lb_slots?: number
           name: string
           num_rounds?: number
           num_teams?: number
@@ -166,16 +297,17 @@ export type Database = {
           wr_slots?: number
         }
         Update: {
-          bench_slots?: number
           created_at?: string
           current_pick?: number | null
           current_round?: number | null
+          db_slots?: number
           def_slots?: number
+          dl_slots?: number
           draft_status?: string
           draft_time_seconds?: number
-          flex_slots?: number
           id?: string
           k_slots?: number
+          lb_slots?: number
           name?: string
           num_rounds?: number
           num_teams?: number
@@ -189,28 +321,37 @@ export type Database = {
       }
       pick_trades: {
         Row: {
-          draft_pick_id: string
+          draft_pick_id: string | null
           from_team_id: string
           id: string
           league_id: string
+          original_team_id: string | null
+          round: number | null
           to_team_id: string
           traded_at: string
+          year: number | null
         }
         Insert: {
-          draft_pick_id: string
+          draft_pick_id?: string | null
           from_team_id: string
           id?: string
           league_id: string
+          original_team_id?: string | null
+          round?: number | null
           to_team_id: string
           traded_at?: string
+          year?: number | null
         }
         Update: {
-          draft_pick_id?: string
+          draft_pick_id?: string | null
           from_team_id?: string
           id?: string
           league_id?: string
+          original_team_id?: string | null
+          round?: number | null
           to_team_id?: string
           traded_at?: string
+          year?: number | null
         }
         Relationships: [
           {
@@ -232,6 +373,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_trades_original_team_id_fkey"
+            columns: ["original_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
           {
@@ -296,6 +444,48 @@ export type Database = {
           synced_at?: string
         }
         Relationships: []
+      }
+      team_draft_positions: {
+        Row: {
+          created_at: string
+          draft_position: number
+          id: string
+          league_id: string
+          team_id: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          draft_position: number
+          id?: string
+          league_id: string
+          team_id: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          draft_position?: number
+          id?: string
+          league_id?: string
+          team_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_draft_positions_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_draft_positions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teams: {
         Row: {
@@ -463,7 +653,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+

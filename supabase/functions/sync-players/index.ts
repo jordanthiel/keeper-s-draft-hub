@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     console.log(`Fetched ${Object.keys(playersData).length} players from Sleeper`);
 
     // Filter to only relevant positions and active players
-    const relevantPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+    const relevantPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DL', 'LB', 'DB'];
     const players = Object.entries(playersData)
       .filter(([_, player]: [string, any]) => {
         return player.position && 

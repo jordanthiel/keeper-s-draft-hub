@@ -80,6 +80,35 @@ export function useDraftPicks(leagueId: string | undefined, year: number) {
   });
 }
 
+export function useMockDraftPicks(
+  leagueId: string | undefined,
+  year: number,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: ['mock_draft_picks', leagueId, year],
+    queryFn: async () => {
+      if (!leagueId) return [];
+      const { data, error } = await supabase
+        .from('mock_draft_picks')
+        .select(`
+          *,
+          player:players(*),
+          original_team:teams!mock_draft_picks_original_team_id_fkey(*),
+          current_team:teams!mock_draft_picks_current_team_id_fkey(*)
+        `)
+        .eq('league_id', leagueId)
+        .eq('year', year)
+        .order('round')
+        .order('pick_number');
+
+      if (error) throw error;
+      return data as DraftPick[];
+    },
+    enabled: !!leagueId && (options?.enabled ?? true),
+  });
+}
+
 export function usePickTrades(leagueId: string | undefined) {
   return useQuery({
     queryKey: ['pick_trades', leagueId],
@@ -696,6 +725,124 @@ export function useTradePick() {
     },
     onError: (error) => {
       toast({ title: 'Error trading pick', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useInitializeMockDraft() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ leagueId, year }: { leagueId: string; year: number }) => {
+      const { data, error } = await supabase.rpc('initialize_mock_draft', {
+        p_league_id: leagueId,
+        p_year: year,
+      });
+      if (error) throw error;
+      return { leagueId, year, count: data as number };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['mock_draft_picks', data.leagueId, data.year] });
+      toast({
+        title: 'Mock draft ready',
+        description: 'Teams cannot see this board. Practice freely.',
+      });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not start mock draft', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useMakeMockPick() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      pickId,
+      playerId,
+      leagueId,
+      year,
+    }: {
+      pickId: string;
+      playerId: string;
+      leagueId: string;
+      year: number;
+    }) => {
+      const { data, error } = await supabase
+        .from('mock_draft_picks')
+        .update({
+          player_id: playerId,
+          picked_at: new Date().toISOString(),
+        })
+        .eq('id', pickId)
+        .select()
+        .single();
+      if (error) throw error;
+      return { pick: data, leagueId, year };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['mock_draft_picks', data.leagueId, data.year] });
+    },
+    onError: (error) => {
+      toast({ title: 'Error making mock pick', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useClearMockDraft() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ leagueId, year }: { leagueId: string; year: number }) => {
+      const { error } = await supabase.rpc('clear_mock_draft', {
+        p_league_id: leagueId,
+        p_year: year,
+      });
+      if (error) throw error;
+      return { leagueId, year };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['mock_draft_picks', data.leagueId, data.year] });
+      toast({ title: 'Mock draft cleared' });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not clear mock draft', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useResetDraftBoard() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ leagueId, year }: { leagueId: string; year: number }) => {
+      const { error } = await supabase.rpc('reset_draft_board', {
+        p_league_id: leagueId,
+        p_year: year,
+      });
+      if (error) throw error;
+      return { leagueId, year };
+    },
+    onSuccess: (data) => {
+      try {
+        localStorage.removeItem(`draft-clock-${data.leagueId}`);
+      } catch {
+        // ignore storage errors
+      }
+      queryClient.invalidateQueries({ queryKey: ['draft_picks', data.leagueId, data.year] });
+      queryClient.invalidateQueries({ queryKey: ['league', data.leagueId] });
+      toast({
+        title: 'Draft board reset',
+        description: 'All selections cleared. Pick ownership and keepers were kept.',
+      });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not reset draft board', description: error.message, variant: 'destructive' });
     },
   });
 }

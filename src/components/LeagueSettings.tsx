@@ -3,11 +3,12 @@ import { League } from '@/lib/types';
 import { useUpdateLeague } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { AuthDialog } from '@/components/AuthDialog';
+import { ResetDraftDialog } from '@/components/ResetDraftDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Save, Shield } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Settings, Save, Shield, TriangleAlert } from 'lucide-react';
 
 interface LeagueSettingsProps {
   league: League;
@@ -222,6 +223,22 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
           {updateLeague.isPending ? 'Saving...' : 'Save Settings'}
         </Button>
       </form>
+
+      <Card className="glass border-destructive/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <TriangleAlert className="h-5 w-5" />
+            Danger zone
+          </CardTitle>
+          <CardDescription>
+            Reset the live draft board at any time. You must type RESET to confirm.
+            Pick ownership and keepers are kept; all player selections are cleared.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResetDraftDialog league={league} year={new Date().getFullYear()} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -209,23 +209,27 @@ export default function LeaguePage() {
           </TabsList>
 
           <TabsContent value="draft">
-            {!draftReady ? (
+            {!draftReady && !isAdmin ? (
               <div className="glass rounded-lg p-12 text-center">
                 <LayoutGrid className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Draft Not Initialized</h3>
                 <p className="text-muted-foreground mb-6">
                   {teams.length < 2
                     ? `Add at least 2 teams to initialize the draft (currently ${teams.length})`
-                    : isAdmin
-                      ? 'Click "Initialize Draft Picks" to set up the draft board'
-                      : 'Waiting for the league admin to initialize the draft'}
+                    : 'Waiting for the league admin to initialize the draft'}
                 </p>
-                {teams.length < 2 && isAdmin && (
-                  <Button onClick={() => handleTabChange('teams')}>
-                    <Users className="h-4 w-4 mr-2" />
-                    Add Teams
-                  </Button>
-                )}
+              </div>
+            ) : !draftReady && isAdmin && teams.length < 2 ? (
+              <div className="glass rounded-lg p-12 text-center">
+                <LayoutGrid className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Draft Not Initialized</h3>
+                <p className="text-muted-foreground mb-6">
+                  Add at least 2 teams to initialize the draft or run a mock draft (currently {teams.length})
+                </p>
+                <Button onClick={() => handleTabChange('teams')}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Add Teams
+                </Button>
               </div>
             ) : (
               <DraftBoard league={league} teams={teams} />

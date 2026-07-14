@@ -1,16 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useDraftPicks, useMakePick, useUpdateLeague, useAllKeepers } from '@/hooks/useLeague';
+import {
+  useDraftPicks,
+  useMakePick,
+  useUpdateLeague,
+  useAllKeepers,
+  useMockDraftPicks,
+  useInitializeMockDraft,
+  useMakeMockPick,
+  useClearMockDraft,
+} from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { useTeamAccess } from '@/contexts/TeamAccessContext';
-import { League, Team, Player, DraftPick, Position, POSITION_COLORS } from '@/lib/types';
+import { League, Team, Player, DraftPick } from '@/lib/types';
 import { PlayerSearch } from './PlayerSearch';
 import { ErrorModal } from './ErrorModal';
 import { PositionBadge } from './PositionBadge';
+import { ResetDraftDialog } from './ResetDraftDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Play, Pause, RotateCcw, Clock, Star, Columns3 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, Star, Columns3, FlaskConical, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -26,14 +36,16 @@ interface ClockState {
   isRunning: boolean;
 }
 
+type DraftStatus = League['draft_status'];
+
 const ROUND_COL_WIDTH = 80;
 const DEFAULT_COL_WIDTH = 140;
 const MIN_COL_WIDTH = 80;
 const MAX_COL_WIDTH = 320;
 const COL_GAP = 4; // gap-1
 
-function clockStorageKey(leagueId: string) {
-  return `draft-clock-${leagueId}`;
+function clockStorageKey(leagueId: string, mock = false) {
+  return mock ? `draft-clock-mock-${leagueId}` : `draft-clock-${leagueId}`;
 }
 
 function colWidthsStorageKey(leagueId: string) {
@@ -44,17 +56,21 @@ function clampColWidth(width: number) {
   return Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, Math.round(width)));
 }
 
-function loadClock(leagueId: string): ClockState | null {
+function loadClock(leagueId: string, mock = false): ClockState | null {
   try {
-    const raw = localStorage.getItem(clockStorageKey(leagueId));
+    const raw = localStorage.getItem(clockStorageKey(leagueId, mock));
     return raw ? (JSON.parse(raw) as ClockState) : null;
   } catch {
     return null;
   }
 }
 
-function saveClock(leagueId: string, state: ClockState) {
-  localStorage.setItem(clockStorageKey(leagueId), JSON.stringify(state));
+function saveClock(leagueId: string, state: ClockState, mock = false) {
+  localStorage.setItem(clockStorageKey(leagueId, mock), JSON.stringify(state));
+}
+
+function clearClock(leagueId: string, mock = false) {
+  localStorage.removeItem(clockStorageKey(leagueId, mock));
 }
 
 function loadColumnWidths(leagueId: string, teams: Team[]): Record<string, number> {
@@ -71,12 +87,26 @@ function loadColumnWidths(leagueId: string, teams: Team[]): Record<string, numbe
 
 export function DraftBoard({ league, teams }: DraftBoardProps) {
   const currentYear = new Date().getFullYear();
-  const { data: picks = [], refetch } = useDraftPicks(league.id, currentYear);
-  const { data: keepers = [] } = useAllKeepers(league.id);
-  const makePick = useMakePick();
-  const updateLeague = useUpdateLeague();
   const { isAdmin, canStartDraft, accessedTeamId } = useLeaguePermissions(league);
   const { getAccessCode } = useTeamAccess();
+
+  const [mockMode, setMockMode] = useState(false);
+  const [mockDraftStatus, setMockDraftStatus] = useState<DraftStatus>('not_started');
+
+  const { data: livePicks = [], refetch: refetchLive } = useDraftPicks(league.id, currentYear);
+  const { data: mockPicks = [], refetch: refetchMock } = useMockDraftPicks(league.id, currentYear, {
+    enabled: isAdmin && mockMode,
+  });
+  const { data: keepers = [] } = useAllKeepers(league.id);
+  const makePick = useMakePick();
+  const makeMockPick = useMakeMockPick();
+  const updateLeague = useUpdateLeague();
+  const initializeMock = useInitializeMockDraft();
+  const clearMock = useClearMockDraft();
+
+  const picks = mockMode ? mockPicks : livePicks;
+  const draftStatus = mockMode ? mockDraftStatus : league.draft_status;
+  const refetch = mockMode ? refetchMock : refetchLive;
 
   const [timeLeft, setTimeLeft] = useState(league.draft_time_seconds);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -144,16 +174,17 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   const draftedPlayerIds = picks.filter(p => p.player_id).map(p => p.player_id!);
   const keeperPlayerIds = keepers.map(k => k.player_id);
 
-  // Subscribe to realtime updates
+  // Subscribe to realtime updates for the active board
   useEffect(() => {
+    const table = mockMode ? 'mock_draft_picks' : 'draft_picks';
     const channel = supabase
-      .channel('draft-picks')
+      .channel(`${table}-${league.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'draft_picks',
+          table,
           filter: `league_id=eq.${league.id}`,
         },
         () => {
@@ -165,11 +196,11 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [league.id, refetch]);
+  }, [league.id, mockMode, refetch]);
 
   // Restore or start the clock when the current pick changes (survives refresh)
   useEffect(() => {
-    if (league.draft_status !== 'in_progress' || !currentPick) {
+    if (draftStatus !== 'in_progress' || !currentPick) {
       trackedPickIdRef.current = null;
       endsAtRef.current = null;
       setIsTimerRunning(false);
@@ -181,7 +212,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     }
     trackedPickIdRef.current = currentPick.id;
 
-    const saved = loadClock(league.id);
+    const saved = loadClock(league.id, mockMode);
     if (saved?.pickId === currentPick.id) {
       if (saved.isRunning && saved.endsAt) {
         const remaining = Math.max(0, Math.ceil((saved.endsAt - Date.now()) / 1000));
@@ -194,7 +225,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
             endsAt: null,
             remainingSeconds: league.draft_time_seconds,
             isRunning: false,
-          });
+          }, mockMode);
           setTimeLeft(league.draft_time_seconds);
         }
       } else {
@@ -214,12 +245,12 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       endsAt,
       remainingSeconds: league.draft_time_seconds,
       isRunning: true,
-    });
-  }, [currentPick?.id, league.draft_status, league.draft_time_seconds, league.id]);
+    }, mockMode);
+  }, [currentPick?.id, draftStatus, league.draft_time_seconds, league.id, mockMode]);
 
   // Tick from absolute deadline so refresh doesn't lose elapsed time
   useEffect(() => {
-    if (!isTimerRunning || league.draft_status !== 'in_progress' || !currentPick) return;
+    if (!isTimerRunning || draftStatus !== 'in_progress' || !currentPick) return;
 
     const interval = setInterval(() => {
       const endsAt = endsAtRef.current;
@@ -237,12 +268,12 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
           endsAt: null,
           remainingSeconds: league.draft_time_seconds,
           isRunning: false,
-        });
+        }, mockMode);
       }
     }, 250);
 
     return () => clearInterval(interval);
-  }, [isTimerRunning, league.draft_status, league.draft_time_seconds, league.id, currentPick?.id]);
+  }, [isTimerRunning, draftStatus, league.draft_time_seconds, league.id, currentPick?.id, mockMode]);
 
   const getPositionCounts = (teamId: string) => {
     const teamPicks = picks.filter(p => p.current_team_id === teamId && p.player_id);
@@ -279,7 +310,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     if (!currentPick) return;
 
     const canPickForTeam =
-      isAdmin || accessedTeamId === currentPick.current_team_id;
+      mockMode || isAdmin || accessedTeamId === currentPick.current_team_id;
     if (!canPickForTeam) {
       setErrorModal({
         open: true,
@@ -324,6 +355,16 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       }
     }
 
+    if (mockMode) {
+      await makeMockPick.mutateAsync({
+        pickId: currentPick.id,
+        playerId: player.id,
+        leagueId: league.id,
+        year: currentYear,
+      });
+      return;
+    }
+
     await makePick.mutateAsync({
       pickId: currentPick.id,
       playerId: player.id,
@@ -334,7 +375,43 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     });
   };
 
+  const enterMockMode = async () => {
+    if (!isAdmin || teams.length < 2) return;
+    await initializeMock.mutateAsync({ leagueId: league.id, year: currentYear });
+    clearClock(league.id, true);
+    trackedPickIdRef.current = null;
+    endsAtRef.current = null;
+    setIsTimerRunning(false);
+    setTimeLeft(league.draft_time_seconds);
+    setMockDraftStatus('not_started');
+    setMockMode(true);
+  };
+
+  const exitMockMode = async () => {
+    clearClock(league.id, true);
+    trackedPickIdRef.current = null;
+    endsAtRef.current = null;
+    setIsTimerRunning(false);
+    setMockDraftStatus('not_started');
+    setMockMode(false);
+    await clearMock.mutateAsync({ leagueId: league.id, year: currentYear });
+  };
+
+  const restartMockDraft = async () => {
+    await initializeMock.mutateAsync({ leagueId: league.id, year: currentYear });
+    clearClock(league.id, true);
+    trackedPickIdRef.current = null;
+    endsAtRef.current = null;
+    setIsTimerRunning(false);
+    setTimeLeft(league.draft_time_seconds);
+    setMockDraftStatus('not_started');
+  };
+
   const startDraft = async () => {
+    if (mockMode) {
+      setMockDraftStatus('in_progress');
+      return;
+    }
     await updateLeague.mutateAsync({
       id: league.id,
       draft_status: 'in_progress',
@@ -352,7 +429,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         endsAt: null,
         remainingSeconds: timeLeft,
         isRunning: false,
-      });
+      }, mockMode);
     }
   };
 
@@ -366,7 +443,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         endsAt,
         remainingSeconds: timeLeft,
         isRunning: true,
-      });
+      }, mockMode);
     }
   };
 
@@ -382,7 +459,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         endsAt,
         remainingSeconds: league.draft_time_seconds,
         isRunning: true,
-      });
+      }, mockMode);
     } else {
       endsAtRef.current = null;
       saveClock(league.id, {
@@ -390,7 +467,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         endsAt: null,
         remainingSeconds: league.draft_time_seconds,
         isRunning: false,
-      });
+      }, mockMode);
     }
   };
 
@@ -450,25 +527,93 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     ? Math.max(...teams.map(t => keepersByTeam[t.id]?.length ?? 0), 0)
     : 0;
 
+  const liveBoardReady = livePicks.length > 0;
+  const boardReady = picks.length > 0;
+
+  if (!boardReady && !mockMode) {
+    return (
+      <div className="glass rounded-lg p-12 text-center space-y-4">
+        <Columns3 className="h-16 w-16 mx-auto text-muted-foreground" />
+        <h3 className="text-xl font-semibold">Draft Not Initialized</h3>
+        <p className="text-muted-foreground max-w-md mx-auto">
+          {teams.length < 2
+            ? `Add at least 2 teams to set up the draft (currently ${teams.length}).`
+            : isAdmin
+              ? 'Initialize the live draft board, or run a private mock draft teams cannot see.'
+              : 'Waiting for the league admin to initialize the draft.'}
+        </p>
+        {isAdmin && teams.length >= 2 && (
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Button
+              onClick={enterMockMode}
+              disabled={initializeMock.isPending}
+              variant="secondary"
+              size="lg"
+            >
+              <FlaskConical className="h-4 w-4 mr-2" />
+              {initializeMock.isPending ? 'Starting mock...' : 'Run Mock Draft'}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Draft Controls */}
-      <Card className="glass p-6">
+      {mockMode && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <EyeOff className="h-4 w-4 text-accent shrink-0" />
+            <span>
+              <Badge variant="secondary" className="mr-2 gap-1">
+                <FlaskConical className="h-3 w-3" />
+                Mock Draft
+              </Badge>
+              Private practice board — teams cannot see these picks.
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={restartMockDraft}
+              disabled={initializeMock.isPending}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Restart mock
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={exitMockMode}
+              disabled={clearMock.isPending}
+            >
+              Exit mock
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Draft Controls — z-index so player search results stack above the board */}
+      <Card className="glass p-6 relative z-20">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            {league.draft_status === 'not_started' && canStartDraft && (
+          <div className="flex flex-wrap items-center gap-3">
+            {draftStatus === 'not_started' && (canStartDraft || mockMode) && (
               <Button onClick={startDraft} size="lg" className="glow-primary">
                 <Play className="mr-2 h-5 w-5" />
-                Start Draft
+                {mockMode ? 'Start Mock Draft' : 'Start Draft'}
               </Button>
             )}
-            {league.draft_status === 'not_started' && !canStartDraft && (
+            {draftStatus === 'not_started' && !canStartDraft && !mockMode && (
               <p className="text-sm text-muted-foreground">
                 Waiting for the league admin to start the draft.
               </p>
             )}
 
-            {league.draft_status === 'in_progress' && isAdmin && (
+            {draftStatus === 'in_progress' && (isAdmin || mockMode) && (
               <>
                 {isTimerRunning ? (
                   <Button onClick={pauseDraft} variant="secondary" size="lg">
@@ -487,9 +632,32 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
                 </Button>
               </>
             )}
+
+            {isAdmin && !mockMode && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  onClick={enterMockMode}
+                  disabled={initializeMock.isPending || teams.length < 2}
+                >
+                  <FlaskConical className="mr-2 h-5 w-5" />
+                  {initializeMock.isPending ? 'Starting mock...' : 'Mock Draft'}
+                </Button>
+                {liveBoardReady && (
+                  <ResetDraftDialog
+                    league={league}
+                    year={currentYear}
+                    triggerVariant="outline"
+                    triggerLabel="Reset Board"
+                  />
+                )}
+              </>
+            )}
           </div>
 
-          {league.draft_status === 'in_progress' && currentPick && (
+          {draftStatus === 'in_progress' && currentPick && (
             <div className="flex items-center gap-6">
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">On the Clock</div>
@@ -512,10 +680,10 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
           )}
         </div>
 
-        {/* Player Search — admin or the team on the clock */}
-        {league.draft_status === 'in_progress' && currentPick && (
+        {/* Player Search — admin, mock mode, or the team on the clock */}
+        {draftStatus === 'in_progress' && currentPick && (
           <div className="mt-6 max-w-xl">
-            {isAdmin || accessedTeamId === currentPick.current_team_id ? (
+            {mockMode || isAdmin || accessedTeamId === currentPick.current_team_id ? (
               <PlayerSearch
                 onSelect={handleDraft}
                 placeholder={`Search for a player for ${currentTeam?.name}...`}
@@ -571,7 +739,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
                 key={team.id} 
                 className={cn(
                   "relative min-w-0 p-3 rounded-t-lg text-center font-display text-lg truncate select-none",
-                  currentTeam?.id === team.id && league.draft_status === 'in_progress'
+                  currentTeam?.id === team.id && draftStatus === 'in_progress'
                     ? "bg-primary text-primary-foreground glow-primary"
                     : "bg-secondary"
                 )}

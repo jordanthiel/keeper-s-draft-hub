@@ -85,6 +85,77 @@ export type Database = {
           },
         ]
       }
+      mock_draft_picks: {
+        Row: {
+          created_at: string
+          current_team_id: string
+          id: string
+          is_keeper: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number: number | null
+          picked_at: string | null
+          player_id: string | null
+          round: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          current_team_id: string
+          id?: string
+          is_keeper?: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number?: number | null
+          picked_at?: string | null
+          player_id?: string | null
+          round: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          current_team_id?: string
+          id?: string
+          is_keeper?: boolean | null
+          league_id?: string
+          original_team_id?: string
+          pick_number?: number | null
+          picked_at?: string | null
+          player_id?: string | null
+          round?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mock_draft_picks_current_team_id_fkey"
+            columns: ["current_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_draft_picks_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_draft_picks_original_team_id_fkey"
+            columns: ["original_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_draft_picks_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keepers: {
         Row: {
           created_at: string
@@ -444,6 +515,14 @@ export type Database = {
           access_code: string
         }[]
       }
+      clear_mock_draft: {
+        Args: { p_league_id: string; p_year?: number }
+        Returns: undefined
+      }
+      initialize_mock_draft: {
+        Args: { p_league_id: string; p_year?: number }
+        Returns: number
+      }
       is_league_admin: {
         Args: { p_league_id: string }
         Returns: boolean
@@ -479,6 +558,10 @@ export type Database = {
       }
       remove_keeper_with_code: {
         Args: { p_keeper_id: string; p_access_code: string }
+        Returns: undefined
+      }
+      reset_draft_board: {
+        Args: { p_league_id: string; p_year?: number }
         Returns: undefined
       }
       trade_pick_with_code: {

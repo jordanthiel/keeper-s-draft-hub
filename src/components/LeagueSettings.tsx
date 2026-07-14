@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { League } from '@/lib/types';
 import { useUpdateLeague } from '@/hooks/useLeague';
+import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
+import { AuthDialog } from '@/components/AuthDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Save } from 'lucide-react';
+import { Settings, Save, Shield } from 'lucide-react';
 
 interface LeagueSettingsProps {
   league: League;
@@ -13,10 +15,12 @@ interface LeagueSettingsProps {
 
 export function LeagueSettings({ league }: LeagueSettingsProps) {
   const updateLeague = useUpdateLeague();
+  const { canEditSettings, isAdmin } = useLeaguePermissions(league);
   const [formData, setFormData] = useState({
     name: league.name,
     num_teams: league.num_teams,
     num_rounds: league.num_rounds,
+    num_keepers: league.num_keepers,
     draft_time_seconds: league.draft_time_seconds,
     qb_slots: league.qb_slots,
     rb_slots: league.rb_slots,
@@ -30,11 +34,32 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditSettings) return;
     await updateLeague.mutateAsync({
       id: league.id,
       ...formData,
     });
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Settings className="h-6 w-6 text-primary" />
+          <h2 className="text-2xl font-display">League Settings</h2>
+        </div>
+        <Card className="glass p-8 text-center space-y-4">
+          <Shield className="h-10 w-10 mx-auto text-muted-foreground" />
+          <p className="text-muted-foreground">
+            Only the signed-in league admin can change league-wide settings.
+          </p>
+          <div className="flex justify-center">
+            <AuthDialog triggerLabel="Sign in as admin" />
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const handleChange = (key: keyof typeof formData, value: string | number) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -78,6 +103,16 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
                 max={30}
                 value={formData.num_rounds}
                 onChange={(e) => handleChange('num_rounds', parseInt(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Keepers per team</Label>
+              <Input
+                type="number"
+                min={0}
+                max={30}
+                value={formData.num_keepers}
+                onChange={(e) => handleChange('num_keepers', parseInt(e.target.value) || 0)}
               />
             </div>
             <div className="space-y-2">

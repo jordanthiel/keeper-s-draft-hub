@@ -1,1 +1,13 @@
 project_id = "dxqrumbmepfsaavjfzjj"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+# Platform verify_jwt only supports legacy HS256. Local auth issues ES256
+# tokens, so verify inside the function with auth.getUser() instead.
+[functions.send-keeper-requests]
+verify_jwt = false
+
+[functions.sync-players]
+verify_jwt = false

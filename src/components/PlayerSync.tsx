@@ -1,18 +1,28 @@
-import { RefreshCw, Database, Clock } from 'lucide-react';
+import { RefreshCw, Database, Clock, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSyncPlayers, usePlayerCount, useLastSync } from '@/hooks/usePlayers';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 
 export function PlayerSync() {
+  const { user, loading } = useAuth();
   const syncPlayers = useSyncPlayers();
   const { data: playerCount = 0 } = usePlayerCount();
   const { data: lastSync } = useLastSync();
 
+  if (loading || !user) {
+    return null;
+  }
+
   return (
     <Card className="glass">
       <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-6">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Shield className="h-4 w-4" />
+            <span>Admin tools</span>
+          </div>
           <div className="flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
             <span className="font-semibold">{playerCount.toLocaleString()}</span>
@@ -27,8 +37,8 @@ export function PlayerSync() {
           )}
         </div>
 
-        <Button 
-          onClick={() => syncPlayers.mutate()} 
+        <Button
+          onClick={() => syncPlayers.mutate()}
           disabled={syncPlayers.isPending}
           variant="outline"
         >

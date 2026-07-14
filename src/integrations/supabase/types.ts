@@ -124,8 +124,48 @@ export type Database = {
           },
         ]
       }
+      team_rosters: {
+        Row: {
+          created_at: string
+          id: string
+          player_id: string
+          season_year: number
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          player_id: string
+          season_year: number
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          player_id?: string
+          season_year?: number
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_rosters_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_rosters_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leagues: {
         Row: {
+          admin_user_id: string | null
           bench_slots: number
           created_at: string
           current_pick: number | null
@@ -137,6 +177,7 @@ export type Database = {
           id: string
           k_slots: number
           name: string
+          num_keepers: number
           num_rounds: number
           num_teams: number
           qb_slots: number
@@ -146,6 +187,7 @@ export type Database = {
           wr_slots: number
         }
         Insert: {
+          admin_user_id?: string | null
           bench_slots?: number
           created_at?: string
           current_pick?: number | null
@@ -157,6 +199,7 @@ export type Database = {
           id?: string
           k_slots?: number
           name: string
+          num_keepers?: number
           num_rounds?: number
           num_teams?: number
           qb_slots?: number
@@ -166,6 +209,7 @@ export type Database = {
           wr_slots?: number
         }
         Update: {
+          admin_user_id?: string | null
           bench_slots?: number
           created_at?: string
           current_pick?: number | null
@@ -177,6 +221,7 @@ export type Database = {
           id?: string
           k_slots?: number
           name?: string
+          num_keepers?: number
           num_rounds?: number
           num_teams?: number
           qb_slots?: number
@@ -186,6 +231,32 @@ export type Database = {
           wr_slots?: number
         }
         Relationships: []
+      }
+      team_credentials: {
+        Row: {
+          access_code: string
+          created_at: string
+          team_id: string
+        }
+        Insert: {
+          access_code: string
+          created_at?: string
+          team_id: string
+        }
+        Update: {
+          access_code?: string
+          created_at?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_credentials_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pick_trades: {
         Row: {
@@ -301,6 +372,7 @@ export type Database = {
         Row: {
           created_at: string
           draft_position: number
+          email: string | null
           id: string
           league_id: string
           name: string
@@ -308,6 +380,7 @@ export type Database = {
         Insert: {
           created_at?: string
           draft_position: number
+          email?: string | null
           id?: string
           league_id: string
           name: string
@@ -315,6 +388,7 @@ export type Database = {
         Update: {
           created_at?: string
           draft_position?: number
+          email?: string | null
           id?: string
           league_id?: string
           name?: string
@@ -334,7 +408,111 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_keeper_with_code: {
+        Args: {
+          p_team_id: string
+          p_player_id: string
+          p_access_code: string
+          p_round_cost?: number
+        }
+        Returns: {
+          created_at: string
+          id: string
+          player_id: string
+          round_cost: number
+          team_id: string
+        }
+      }
+      can_manage_league: {
+        Args: { p_league_id: string }
+        Returns: boolean
+      }
+      create_team_with_access: {
+        Args: {
+          p_league_id: string
+          p_name: string
+          p_email: string
+          p_draft_position: number
+        }
+        Returns: {
+          id: string
+          league_id: string
+          name: string
+          draft_position: number
+          email: string
+          created_at: string
+          access_code: string
+        }[]
+      }
+      is_league_admin: {
+        Args: { p_league_id: string }
+        Returns: boolean
+      }
+      list_team_access_codes: {
+        Args: { p_league_id: string }
+        Returns: {
+          team_id: string
+          team_name: string
+          email: string
+          access_code: string
+        }[]
+      }
+      make_pick_with_code: {
+        Args: {
+          p_pick_id: string
+          p_player_id: string
+          p_access_code?: string | null
+        }
+        Returns: {
+          created_at: string
+          current_team_id: string
+          id: string
+          is_keeper: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number: number | null
+          picked_at: string | null
+          player_id: string | null
+          round: number
+          year: number
+        }
+      }
+      remove_keeper_with_code: {
+        Args: { p_keeper_id: string; p_access_code: string }
+        Returns: undefined
+      }
+      trade_pick_with_code: {
+        Args: {
+          p_pick_id: string
+          p_from_team_id: string
+          p_to_team_id: string
+          p_access_code?: string | null
+        }
+        Returns: undefined
+      }
+      verify_team_access: {
+        Args: { p_league_id: string; p_access_code: string }
+        Returns: {
+          id: string
+          league_id: string
+          name: string
+          draft_position: number
+          email: string
+          created_at: string
+        }[]
+      }
+      verify_team_access_by_code: {
+        Args: { p_access_code: string }
+        Returns: {
+          id: string
+          league_id: string
+          league_name: string
+          name: string
+          draft_position: number
+          email: string
+          created_at: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

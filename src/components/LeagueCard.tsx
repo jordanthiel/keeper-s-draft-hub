@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 interface LeagueCardProps {
   league: League;
+  teamLabel?: string;
 }
 
 const statusColors = {
@@ -21,16 +22,23 @@ const statusLabels = {
   completed: 'Completed',
 };
 
-export function LeagueCard({ league }: LeagueCardProps) {
+export function LeagueCard({ league, teamLabel }: LeagueCardProps) {
   return (
     <Link to={`/league/${league.id}`}>
       <Card className="glass hover:border-primary/50 transition-all duration-300 hover:scale-[1.02] cursor-pointer group">
         <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <CardTitle className="text-xl font-display group-hover:text-primary transition-colors">
-              {league.name}
-            </CardTitle>
-            <Badge className={cn(statusColors[league.draft_status])}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="text-xl font-display group-hover:text-primary transition-colors truncate">
+                {league.name}
+              </CardTitle>
+              {teamLabel && (
+                <p className="text-sm text-muted-foreground mt-1 truncate">
+                  Your team: {teamLabel}
+                </p>
+              )}
+            </div>
+            <Badge className={cn(statusColors[league.draft_status], 'shrink-0')}>
               {statusLabels[league.draft_status]}
             </Badge>
           </div>

@@ -189,6 +189,6 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.initialize_mock_draft(UUID, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.clear_mock_draft(UUID, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.reset_draft_board(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.initialize_mock_draft(UUID, INTEGER) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.clear_mock_draft(UUID, INTEGER) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reset_draft_board(UUID, INTEGER) TO anon, authenticated;

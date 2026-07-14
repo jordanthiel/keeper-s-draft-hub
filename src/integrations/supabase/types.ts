@@ -234,6 +234,35 @@ export type Database = {
           },
         ]
       }
+      league_admins: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          league_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          league_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          league_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_admins_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leagues: {
         Row: {
           admin_user_id: string | null
@@ -494,6 +523,15 @@ export type Database = {
           team_id: string
         }
       }
+      add_league_admin_by_email: {
+        Args: { p_league_id: string; p_email: string }
+        Returns: {
+          user_id: string
+          email: string
+          is_primary: boolean
+          created_at: string
+        }[]
+      }
       can_manage_league: {
         Args: { p_league_id: string }
         Returns: boolean
@@ -527,6 +565,15 @@ export type Database = {
         Args: { p_league_id: string }
         Returns: boolean
       }
+      list_league_admins: {
+        Args: { p_league_id: string }
+        Returns: {
+          user_id: string
+          email: string
+          is_primary: boolean
+          created_at: string
+        }[]
+      }
       list_team_access_codes: {
         Args: { p_league_id: string }
         Returns: {
@@ -558,6 +605,10 @@ export type Database = {
       }
       remove_keeper_with_code: {
         Args: { p_keeper_id: string; p_access_code: string }
+        Returns: undefined
+      }
+      remove_league_admin: {
+        Args: { p_league_id: string; p_user_id: string }
         Returns: undefined
       }
       reset_draft_board: {

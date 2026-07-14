@@ -178,8 +178,8 @@ export default function LeaguePage() {
           {!isAdmin && !accessedTeam && (
             <p className="text-sm text-muted-foreground">
               {user
-                ? 'You are signed in, but not this league\'s admin. Enter a team access code to manage a team.'
-                : 'Viewing as guest. Enter a team access code to edit your team, or sign in as the league admin.'}
+                ? 'You are signed in, but not an admin of this league. Enter a team access code to manage a team.'
+                : 'Viewing as guest. Enter a team access code to edit your team, or sign in as a league admin.'}
             </p>
           )}
         </div>

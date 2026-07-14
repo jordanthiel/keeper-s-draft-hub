@@ -19,6 +19,105 @@ export function useLeagues(options?: { enabled?: boolean }) {
   });
 }
 
+/** Leagues where the signed-in user is an admin (primary or co-admin). */
+export function useMyAdminLeagues(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['my_admin_leagues'],
+    queryFn: async () => {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('league_admins')
+        .select('created_at, leagues(*)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return (data ?? [])
+        .map((row) => row.leagues as League | null)
+        .filter((league): league is League => !!league);
+    },
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export type LeagueAdminRow = {
+  user_id: string;
+  email: string;
+  is_primary: boolean;
+  created_at: string;
+};
+
+export function useLeagueAdmins(leagueId: string | undefined, enabled = false) {
+  return useQuery({
+    queryKey: ['league_admins', leagueId],
+    queryFn: async () => {
+      if (!leagueId) return [];
+      const { data, error } = await supabase.rpc('list_league_admins', {
+        p_league_id: leagueId,
+      });
+      if (error) throw error;
+      return (data ?? []) as LeagueAdminRow[];
+    },
+    enabled: !!leagueId && enabled,
+  });
+}
+
+export function useAddLeagueAdmin() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ leagueId, email }: { leagueId: string; email: string }) => {
+      const { data, error } = await supabase.rpc('add_league_admin_by_email', {
+        p_league_id: leagueId,
+        p_email: email,
+      });
+      if (error) throw error;
+      return { leagueId, rows: (data ?? []) as LeagueAdminRow[] };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['league_admins', data.leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['my_admin_leagues'] });
+      queryClient.invalidateQueries({ queryKey: ['can_manage_league', data.leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['league', data.leagueId] });
+      toast({ title: 'Admin added', description: 'They can manage this league when signed in.' });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not add admin', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useRemoveLeagueAdmin() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ leagueId, userId }: { leagueId: string; userId: string }) => {
+      const { error } = await supabase.rpc('remove_league_admin', {
+        p_league_id: leagueId,
+        p_user_id: userId,
+      });
+      if (error) throw error;
+      return { leagueId, userId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['league_admins', data.leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['my_admin_leagues'] });
+      queryClient.invalidateQueries({ queryKey: ['can_manage_league', data.leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['league', data.leagueId] });
+      toast({ title: 'Admin removed' });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not remove admin', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 export function useLeague(id: string | undefined) {
   return useQuery({
     queryKey: ['league', id],
@@ -204,6 +303,7 @@ export function useCreateLeague() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leagues'] });
+      queryClient.invalidateQueries({ queryKey: ['my_admin_leagues'] });
       toast({ title: 'League created successfully!' });
     },
     onError: (error) => {

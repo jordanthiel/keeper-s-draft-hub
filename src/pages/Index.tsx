@@ -1,4 +1,4 @@
-import { useLeagues } from '@/hooks/useLeague';
+import { useMyAdminLeagues } from '@/hooks/useLeague';
 import { useAuth } from '@/contexts/AuthContext';
 import { CreateLeagueDialog } from '@/components/CreateLeagueDialog';
 import { LeagueCard } from '@/components/LeagueCard';
@@ -9,11 +9,7 @@ import { Trophy } from 'lucide-react';
 
 const Index = () => {
   const { user } = useAuth();
-  const { data: leagues = [], isLoading } = useLeagues({ enabled: !!user });
-
-  const adminLeagues = user
-    ? leagues.filter(l => l.admin_user_id === user.id)
-    : [];
+  const { data: adminLeagues = [], isLoading } = useMyAdminLeagues({ enabled: !!user });
 
   return (
     <div className="min-h-screen bg-background">

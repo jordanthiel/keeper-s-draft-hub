@@ -50,7 +50,7 @@ export function CreateLeagueDialog() {
       <div className="flex flex-col items-center gap-3">
         <AuthDialog triggerLabel="Sign in to create a league" />
         <p className="text-sm text-muted-foreground">
-          League creators become the admin for that league.
+          League creators become an admin and can invite others later.
         </p>
       </div>
     );
@@ -68,7 +68,7 @@ export function CreateLeagueDialog() {
         <DialogHeader>
           <DialogTitle className="text-2xl font-display">Create New League</DialogTitle>
           <DialogDescription>
-            You will be marked as this league&apos;s admin.
+            You will be an admin for this league. You can add more admins in Settings.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">

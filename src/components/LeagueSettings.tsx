@@ -4,6 +4,7 @@ import { useUpdateLeague } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { AuthDialog } from '@/components/AuthDialog';
 import { ResetDraftDialog } from '@/components/ResetDraftDialog';
+import { LeagueAdminsManager } from '@/components/LeagueAdminsManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,7 +53,7 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
         <Card className="glass p-8 text-center space-y-4">
           <Shield className="h-10 w-10 mx-auto text-muted-foreground" />
           <p className="text-muted-foreground">
-            Only the signed-in league admin can change league-wide settings.
+            Only signed-in league admins can change league-wide settings.
           </p>
           <div className="flex justify-center">
             <AuthDialog triggerLabel="Sign in as admin" />
@@ -223,6 +224,8 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
           {updateLeague.isPending ? 'Saving...' : 'Save Settings'}
         </Button>
       </form>
+
+      <LeagueAdminsManager league={league} />
 
       <Card className="glass border-destructive/40">
         <CardHeader>

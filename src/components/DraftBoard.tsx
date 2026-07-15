@@ -96,9 +96,13 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   const [mockDraftStatus, setMockDraftStatus] = useState<DraftStatus>('not_started');
 
   const { data: livePicks = [], refetch: refetchLive } = useDraftPicks(league.id, currentYear);
-  const { data: mockPicks = [], refetch: refetchMock } = useMockDraftPicks(league.id, currentYear, {
-    enabled: isAdmin && mockMode,
-  });
+  const { data: mockPicks = [], refetch: refetchMock } = useMockDraftPicks(
+    league.id,
+    currentYear,
+    {
+      enabled: isAdmin && mockMode,
+    }
+  );
   const { data: keepers = [] } = useAllKeepers(league.id);
   const makePick = useMakePick();
   const makeMockPick = useMakeMockPick();
@@ -110,6 +114,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   const picks = mockMode ? mockPicks : livePicks;
   const draftStatus = mockMode ? mockDraftStatus : league.draft_status;
   const refetch = mockMode ? refetchMock : refetchLive;
+  const mockBoardReady = !mockMode || mockPicks.length > 0;
 
   const [timeLeft, setTimeLeft] = useState(league.draft_time_seconds);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -369,6 +374,16 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
 
     try {
       if (mockMode) {
+        // Guard against stale pick IDs from a previous mock session still in memory
+        if (!mockPicks.some((p) => p.id === currentPick.id)) {
+          await refetchMock();
+          setErrorModal({
+            open: true,
+            title: 'BOARD REFRESHED',
+            message: 'The mock board was still loading. Please select the player again.',
+          });
+          return;
+        }
         await makeMockPick.mutateAsync({
           pickId: currentPick.id,
           playerId: player.id,
@@ -439,6 +454,14 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
 
   const startDraft = async () => {
     if (mockMode) {
+      if (!mockBoardReady) {
+        setErrorModal({
+          open: true,
+          title: 'MOCK BOARD LOADING',
+          message: 'Wait a moment for the mock board to finish loading, then start again.',
+        });
+        return;
+      }
       setMockDraftStatus('in_progress');
       return;
     }
@@ -669,9 +692,18 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             {draftStatus === 'not_started' && (canStartDraft || mockMode) && (
-              <Button onClick={startDraft} size="lg" className="glow-primary">
+              <Button
+                onClick={startDraft}
+                size="lg"
+                className="glow-primary"
+                disabled={mockMode && (!mockBoardReady || initializeMock.isPending)}
+              >
                 <Play className="mr-2 h-5 w-5" />
-                {mockMode ? 'Start Mock Draft' : 'Start Draft'}
+                {mockMode && !mockBoardReady
+                  ? 'Loading mock board...'
+                  : mockMode
+                    ? 'Start Mock Draft'
+                    : 'Start Draft'}
               </Button>
             )}
             {draftStatus === 'not_started' && !canStartDraft && !mockMode && (

@@ -189,6 +189,24 @@ export function useDraftPicks(leagueId: string | undefined, year: number) {
   });
 }
 
+async function fetchMockDraftPicks(leagueId: string, year: number) {
+  const { data, error } = await supabase
+    .from('mock_draft_picks')
+    .select(`
+      *,
+      player:players(*),
+      original_team:teams!mock_draft_picks_original_team_id_fkey(*),
+      current_team:teams!mock_draft_picks_current_team_id_fkey(*)
+    `)
+    .eq('league_id', leagueId)
+    .eq('year', year)
+    .order('round')
+    .order('pick_number');
+
+  if (error) throw error;
+  return data as DraftPick[];
+}
+
 export function useMockDraftPicks(
   leagueId: string | undefined,
   year: number,
@@ -198,21 +216,7 @@ export function useMockDraftPicks(
     queryKey: ['mock_draft_picks', leagueId, year],
     queryFn: async () => {
       if (!leagueId) return [];
-      const { data, error } = await supabase
-        .from('mock_draft_picks')
-        .select(`
-          *,
-          player:players(*),
-          original_team:teams!mock_draft_picks_original_team_id_fkey(*),
-          current_team:teams!mock_draft_picks_current_team_id_fkey(*)
-        `)
-        .eq('league_id', leagueId)
-        .eq('year', year)
-        .order('round')
-        .order('pick_number');
-
-      if (error) throw error;
-      return data as DraftPick[];
+      return fetchMockDraftPicks(leagueId, year);
     },
     enabled: !!leagueId && (options?.enabled ?? true),
   });
@@ -994,15 +998,22 @@ export function useInitializeMockDraft() {
 
   return useMutation({
     mutationFn: async ({ leagueId, year }: { leagueId: string; year: number }) => {
+      // Drop stale pick IDs immediately so the UI can't submit deleted rows
+      queryClient.setQueryData(['mock_draft_picks', leagueId, year], []);
+
       const { data, error } = await supabase.rpc('initialize_mock_draft', {
         p_league_id: leagueId,
         p_year: year,
       });
       if (error) throw error;
-      return { leagueId, year, count: data as number };
+
+      // Seed cache with fresh IDs before mock mode is enabled (query is disabled until then)
+      const picks = await fetchMockDraftPicks(leagueId, year);
+      queryClient.setQueryData(['mock_draft_picks', leagueId, year], picks);
+
+      return { leagueId, year, count: data as number, picks };
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['mock_draft_picks', data.leagueId, data.year] });
+    onSuccess: () => {
       toast({
         title: 'Mock draft ready',
         description: 'Teams cannot see this board. Practice freely.',
@@ -1034,11 +1045,16 @@ export function useMakeMockPick() {
         p_pick_id: pickId,
         p_player_id: playerId,
       });
-      if (error) throw error;
+      if (error) {
+        const details = [error.message, error.hint, error.details].filter(Boolean).join(' — ');
+        throw new Error(details || 'Mock pick failed');
+      }
       return { pick: data, leagueId, year };
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['mock_draft_picks', data.leagueId, data.year] });
+    onSuccess: async (data) => {
+      // Keep board in sync without waiting on a slow invalidate/refetch path
+      const picks = await fetchMockDraftPicks(data.leagueId, data.year);
+      queryClient.setQueryData(['mock_draft_picks', data.leagueId, data.year], picks);
     },
     onError: (error) => {
       toast({ title: 'Error making mock pick', description: error.message, variant: 'destructive' });

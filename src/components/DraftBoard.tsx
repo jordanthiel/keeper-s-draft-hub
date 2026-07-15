@@ -8,6 +8,7 @@ import {
   useInitializeMockDraft,
   useMakeMockPick,
   useClearMockDraft,
+  useInitializeDraftPicks,
 } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { useTeamAccess } from '@/contexts/TeamAccessContext';
@@ -16,6 +17,7 @@ import { PlayerSearch } from './PlayerSearch';
 import { ErrorModal } from './ErrorModal';
 import { PositionBadge } from './PositionBadge';
 import { ResetDraftDialog } from './ResetDraftDialog';
+import { DraftOrderEditor } from './DraftOrderEditor';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -87,7 +89,7 @@ function loadColumnWidths(leagueId: string, teams: Team[]): Record<string, numbe
 
 export function DraftBoard({ league, teams }: DraftBoardProps) {
   const currentYear = new Date().getFullYear();
-  const { isAdmin, canStartDraft, accessedTeamId } = useLeaguePermissions(league);
+  const { isAdmin, canStartDraft, canInitializeDraft, accessedTeamId } = useLeaguePermissions(league);
   const { getAccessCode } = useTeamAccess();
 
   const [mockMode, setMockMode] = useState(false);
@@ -102,6 +104,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   const makeMockPick = useMakeMockPick();
   const updateLeague = useUpdateLeague();
   const initializeMock = useInitializeMockDraft();
+  const initializePicks = useInitializeDraftPicks();
   const clearMock = useClearMockDraft();
 
   const picks = mockMode ? mockPicks : livePicks;
@@ -376,7 +379,8 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   };
 
   const enterMockMode = async () => {
-    if (!isAdmin || teams.length < 2) return;
+    // Mock is only allowed before the real board is initialized
+    if (!isAdmin || teams.length < 2 || livePicks.length > 0) return;
     await initializeMock.mutateAsync({ leagueId: league.id, year: currentYear });
     clearClock(league.id, true);
     trackedPickIdRef.current = null;
@@ -530,30 +534,67 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   const liveBoardReady = livePicks.length > 0;
   const boardReady = picks.length > 0;
 
+  // Leave mock mode if the real board gets initialized (e.g. another tab)
+  useEffect(() => {
+    if (!mockMode || !liveBoardReady) return;
+    clearClock(league.id, true);
+    trackedPickIdRef.current = null;
+    endsAtRef.current = null;
+    setIsTimerRunning(false);
+    setMockDraftStatus('not_started');
+    setMockMode(false);
+  }, [mockMode, liveBoardReady, league.id]);
+
+  const handleInitializeDraft = async () => {
+    const orderedTeams = [...teams].sort((a, b) => a.draft_position - b.draft_position);
+    await initializePicks.mutateAsync({
+      leagueId: league.id,
+      teams: orderedTeams,
+      numRounds: league.num_rounds,
+      year: currentYear,
+    });
+  };
+
   if (!boardReady && !mockMode) {
     return (
-      <div className="glass rounded-lg p-12 text-center space-y-4">
-        <Columns3 className="h-16 w-16 mx-auto text-muted-foreground" />
-        <h3 className="text-xl font-semibold">Draft Not Initialized</h3>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          {teams.length < 2
-            ? `Add at least 2 teams to set up the draft (currently ${teams.length}).`
-            : isAdmin
-              ? 'Initialize the live draft board, or run a private mock draft teams cannot see.'
-              : 'Waiting for the league admin to initialize the draft.'}
-        </p>
+      <div className="space-y-6">
+        <div className="glass rounded-lg p-8 md:p-10 text-center space-y-3">
+          <Columns3 className="h-14 w-14 mx-auto text-muted-foreground" />
+          <h3 className="text-xl font-semibold">Draft Not Initialized</h3>
+          <p className="text-muted-foreground max-w-lg mx-auto">
+            {teams.length < 2
+              ? `Add at least 2 teams to set up the draft (currently ${teams.length}).`
+              : isAdmin
+                ? 'Set the draft order below, then initialize the board. You can also run a private mock draft.'
+                : 'Waiting for the league admin to initialize the draft.'}
+          </p>
+        </div>
+
         {isAdmin && teams.length >= 2 && (
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <Button
-              onClick={enterMockMode}
-              disabled={initializeMock.isPending}
-              variant="secondary"
-              size="lg"
-            >
-              <FlaskConical className="h-4 w-4 mr-2" />
-              {initializeMock.isPending ? 'Starting mock...' : 'Run Mock Draft'}
-            </Button>
-          </div>
+          <>
+            <DraftOrderEditor league={league} teams={teams} />
+
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button
+                onClick={handleInitializeDraft}
+                disabled={!canInitializeDraft || initializePicks.isPending}
+                size="lg"
+                className="glow-primary"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft Picks'}
+              </Button>
+              <Button
+                onClick={enterMockMode}
+                disabled={initializeMock.isPending}
+                variant="secondary"
+                size="lg"
+              >
+                <FlaskConical className="h-4 w-4 mr-2" />
+                {initializeMock.isPending ? 'Starting mock...' : 'Run Mock Draft'}
+              </Button>
+            </div>
+          </>
         )}
       </div>
     );
@@ -633,27 +674,13 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
               </>
             )}
 
-            {isAdmin && !mockMode && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  onClick={enterMockMode}
-                  disabled={initializeMock.isPending || teams.length < 2}
-                >
-                  <FlaskConical className="mr-2 h-5 w-5" />
-                  {initializeMock.isPending ? 'Starting mock...' : 'Mock Draft'}
-                </Button>
-                {liveBoardReady && (
-                  <ResetDraftDialog
-                    league={league}
-                    year={currentYear}
-                    triggerVariant="outline"
-                    triggerLabel="Reset Board"
-                  />
-                )}
-              </>
+            {isAdmin && !mockMode && liveBoardReady && (
+              <ResetDraftDialog
+                league={league}
+                year={currentYear}
+                triggerVariant="outline"
+                triggerLabel="Reset Board"
+              />
             )}
           </div>
 

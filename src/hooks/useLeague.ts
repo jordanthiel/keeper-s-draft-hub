@@ -1,6 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { League, Team, DraftPick, Keeper, TeamRosterEntry, PickTrade, priorSeasonYear } from '@/lib/types';
+import {
+  League,
+  Team,
+  DraftPick,
+  Keeper,
+  TeamRosterEntry,
+  PickTrade,
+  PickSwap,
+  TradablePickSlot,
+  priorSeasonYear,
+} from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
 export function useLeagues(options?: { enabled?: boolean }) {
@@ -229,6 +239,98 @@ export function usePickTrades(leagueId: string | undefined) {
     },
     enabled: !!leagueId,
   });
+}
+
+export function usePickSwaps(leagueId: string | undefined, year?: number) {
+  return useQuery({
+    queryKey: ['pick_swaps', leagueId, year ?? 'all'],
+    queryFn: async () => {
+      if (!leagueId) return [];
+      let query = supabase
+        .from('pick_swaps')
+        .select(`
+          *,
+          team_a:teams!pick_swaps_team_a_id_fkey(*),
+          team_b:teams!pick_swaps_team_b_id_fkey(*),
+          slot_a_original_team:teams!pick_swaps_slot_a_original_team_id_fkey(*),
+          slot_b_original_team:teams!pick_swaps_slot_b_original_team_id_fkey(*)
+        `)
+        .eq('league_id', leagueId)
+        .order('created_at', { ascending: false });
+
+      if (year != null) {
+        query = query.eq('year', year);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as PickSwap[];
+    },
+    enabled: !!leagueId,
+  });
+}
+
+/** Build tradable slots for a team (works before or after board init). */
+export function buildTradableSlots(args: {
+  teams: Team[];
+  numRounds: number;
+  year: number;
+  ownerTeamId: string;
+  picks: DraftPick[];
+  swaps: PickSwap[];
+}): TradablePickSlot[] {
+  const { teams, numRounds, year, ownerTeamId, picks, swaps } = args;
+  const yearPicks = picks.filter((p) => p.year === year && !p.player_id);
+
+  if (yearPicks.length > 0) {
+    return yearPicks
+      .filter((p) => p.current_team_id === ownerTeamId)
+      .map((p) => ({
+        original_team_id: p.original_team_id,
+        round: p.round,
+        current_owner_id: p.current_team_id,
+      }))
+      .sort((a, b) => a.round - b.round || a.original_team_id.localeCompare(b.original_team_id));
+  }
+
+  const ownership = new Map<string, string>();
+  for (const team of teams) {
+    for (let round = 1; round <= numRounds; round++) {
+      ownership.set(`${team.id}:${round}`, team.id);
+    }
+  }
+
+  const yearSwaps = [...swaps]
+    .filter((s) => s.year === year)
+    .sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime() ||
+        a.id.localeCompare(b.id)
+    );
+
+  for (const swap of yearSwaps) {
+    ownership.set(`${swap.slot_a_original_team_id}:${swap.slot_a_round}`, swap.team_b_id);
+    ownership.set(`${swap.slot_b_original_team_id}:${swap.slot_b_round}`, swap.team_a_id);
+  }
+
+  const slots: TradablePickSlot[] = [];
+  for (const [key, owner] of ownership) {
+    if (owner !== ownerTeamId) continue;
+    const [original_team_id, roundStr] = key.split(':');
+    slots.push({
+      original_team_id,
+      round: parseInt(roundStr, 10),
+      current_owner_id: owner,
+    });
+  }
+
+  return slots.sort(
+    (a, b) => a.round - b.round || a.original_team_id.localeCompare(b.original_team_id)
+  );
+}
+
+export function slotKey(slot: Pick<{ original_team_id: string; round: number }>) {
+  return `${slot.original_team_id}:${slot.round}`;
 }
 
 export function useKeepers(teamId: string | undefined) {
@@ -463,6 +565,39 @@ export function useDeleteTeam() {
     },
     onError: (error) => {
       toast({ title: 'Error deleting team', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useSetDraftOrder() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      leagueId,
+      teamIds,
+    }: {
+      leagueId: string;
+      teamIds: string[];
+    }) => {
+      const { error } = await supabase.rpc('set_draft_order', {
+        p_league_id: leagueId,
+        p_team_ids: teamIds,
+      });
+      if (error) throw error;
+      return { leagueId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['teams', data.leagueId] });
+      toast({ title: 'Draft order updated' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not update draft order',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 }
@@ -706,10 +841,19 @@ export function useInitializeDraftPicks() {
         .insert(picks);
       
       if (error) throw error;
+
+      const { error: swapError } = await supabase.rpc('apply_pick_swaps', {
+        p_league_id: leagueId,
+        p_year: year,
+      });
+      if (swapError) throw swapError;
+
       return picks;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['draft_picks', variables.leagueId, variables.year] });
+      queryClient.invalidateQueries({ queryKey: ['pick_trades', variables.leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['pick_swaps', variables.leagueId] });
       toast({ title: 'Draft picks initialized!' });
     },
     onError: (error) => {
@@ -770,61 +914,76 @@ export function useMakePick() {
   });
 }
 
-export function useTradePick() {
+export function useExecutePickSwap() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({
-      pickId,
-      fromTeamId,
-      toTeamId,
       leagueId,
       year,
-      access_code,
-      asAdmin,
+      teamAId,
+      slotAOriginalTeamId,
+      slotARound,
+      teamBId,
+      slotBOriginalTeamId,
+      slotBRound,
     }: {
-      pickId: string;
-      fromTeamId: string;
-      toTeamId: string;
       leagueId: string;
       year: number;
-      access_code?: string | null;
-      asAdmin?: boolean;
+      teamAId: string;
+      slotAOriginalTeamId: string;
+      slotARound: number;
+      teamBId: string;
+      slotBOriginalTeamId: string;
+      slotBRound: number;
     }) => {
-      if (asAdmin) {
-        const { error: pickError } = await supabase
-          .from('draft_picks')
-          .update({ current_team_id: toTeamId })
-          .eq('id', pickId);
-        if (pickError) throw pickError;
-
-        const { error: tradeError } = await supabase.from('pick_trades').insert({
-          league_id: leagueId,
-          from_team_id: fromTeamId,
-          to_team_id: toTeamId,
-          draft_pick_id: pickId,
-        });
-        if (tradeError) throw tradeError;
-        return { leagueId, year };
-      }
-
-      const { error } = await supabase.rpc('trade_pick_with_code', {
-        p_pick_id: pickId,
-        p_from_team_id: fromTeamId,
-        p_to_team_id: toTeamId,
-        p_access_code: access_code ?? null,
+      const { data, error } = await supabase.rpc('execute_pick_swap', {
+        p_league_id: leagueId,
+        p_year: year,
+        p_team_a_id: teamAId,
+        p_slot_a_original_team_id: slotAOriginalTeamId,
+        p_slot_a_round: slotARound,
+        p_team_b_id: teamBId,
+        p_slot_b_original_team_id: slotBOriginalTeamId,
+        p_slot_b_round: slotBRound,
       });
+      if (error) throw error;
+      return { swap: data as PickSwap, leagueId, year };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['pick_swaps', data.leagueId] });
+      queryClient.invalidateQueries({ queryKey: ['draft_picks', data.leagueId, data.year] });
+      queryClient.invalidateQueries({ queryKey: ['pick_trades', data.leagueId] });
+      toast({
+        title: 'Trade recorded',
+        description: 'Even swap saved. It applies when the board is initialized (or immediately if it already is).',
+      });
+    },
+    onError: (error) => {
+      toast({ title: 'Error executing trade', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useDeletePickSwap() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ swapId, leagueId, year }: { swapId: string; leagueId: string; year: number }) => {
+      const { error } = await supabase.rpc('delete_pick_swap', { p_swap_id: swapId });
       if (error) throw error;
       return { leagueId, year };
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['pick_swaps', data.leagueId] });
       queryClient.invalidateQueries({ queryKey: ['draft_picks', data.leagueId, data.year] });
       queryClient.invalidateQueries({ queryKey: ['pick_trades', data.leagueId] });
-      toast({ title: 'Pick traded successfully!' });
+      toast({ title: 'Trade removed' });
     },
     onError: (error) => {
-      toast({ title: 'Error trading pick', description: error.message, variant: 'destructive' });
+      toast({ title: 'Could not remove trade', description: error.message, variant: 'destructive' });
     },
   });
 }
@@ -935,10 +1094,11 @@ export function useResetDraftBoard() {
         // ignore storage errors
       }
       queryClient.invalidateQueries({ queryKey: ['draft_picks', data.leagueId, data.year] });
+      queryClient.invalidateQueries({ queryKey: ['pick_trades', data.leagueId] });
       queryClient.invalidateQueries({ queryKey: ['league', data.leagueId] });
       toast({
         title: 'Draft board reset',
-        description: 'All selections cleared. Pick ownership and keepers were kept.',
+        description: 'Board uninitialized. You can change draft order and initialize again.',
       });
     },
     onError: (error) => {

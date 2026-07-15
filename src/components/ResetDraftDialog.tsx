@@ -64,11 +64,13 @@ export function ResetDraftDialog({
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
-                This clears every player selection for <span className="font-medium text-foreground">{league.name}</span> ({year})
-                and sets the draft back to not started.
+                This removes the initialized draft board for{' '}
+                <span className="font-medium text-foreground">{league.name}</span> ({year}) and returns
+                the league to before Initialize Draft Picks.
               </p>
               <p>
-                Pick trades/ownership and keepers stay in place. This cannot be undone.
+                All picks and pick trades for this year are deleted. Teams, draft order, and keepers
+                stay. This cannot be undone.
               </p>
               <div className="space-y-2 pt-1">
                 <Label htmlFor="reset-confirm">

@@ -113,9 +113,10 @@ export default function LeaguePage() {
   const accessedTeam = accessedTeamId ? teams.find(t => t.id === accessedTeamId) : null;
 
   const handleInitializeDraft = async () => {
+    const orderedTeams = [...teams].sort((a, b) => a.draft_position - b.draft_position);
     await initializePicks.mutateAsync({
       leagueId: league.id,
-      teams,
+      teams: orderedTeams,
       numRounds: league.num_rounds,
       year: currentYear,
     });
@@ -167,6 +168,7 @@ export default function LeaguePage() {
                   onClick={handleInitializeDraft}
                   disabled={initializePicks.isPending}
                   className="glow-primary"
+                  title="Uses the draft order from the Teams tab"
                 >
                   <Play className="h-4 w-4 mr-2" />
                   {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft Picks'}

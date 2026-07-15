@@ -6,6 +6,7 @@ import {
   useKeepers,
   useTeamAccessCodes,
   useSendKeeperRequests,
+  useDraftPicks,
 } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PositionBadge } from './PositionBadge';
+import { DraftOrderEditor } from './DraftOrderEditor';
 import { Plus, Trash2, Star, Users, Copy, Mail, Send, ExternalLink } from 'lucide-react';
 import {
   Dialog,
@@ -170,6 +172,9 @@ export function TeamManager({ league, teams }: TeamManagerProps) {
   const sendKeeperRequests = useSendKeeperRequests();
   const { canAddOrDeleteTeams, isAdmin } = useLeaguePermissions(league);
   const { data: codes = [] } = useTeamAccessCodes(league.id, isAdmin);
+  const currentYear = new Date().getFullYear();
+  const { data: picks = [] } = useDraftPicks(league.id, currentYear);
+  const canEditDraftOrder = isAdmin && picks.length === 0;
   const codeByTeamId = Object.fromEntries(codes.map(c => [c.team_id, c.access_code]));
   const teamsWithEmail = teams.filter(t => !!t.email?.trim()).length;
 
@@ -256,7 +261,7 @@ export function TeamManager({ league, teams }: TeamManagerProps) {
                     />
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Draft Position: #{teams.length + 1}
+                    Starts at draft position #{teams.length + 1}. You can reorder before initializing the board.
                   </div>
                   <Button type="submit" className="w-full" disabled={createTeam.isPending}>
                     {createTeam.isPending ? 'Adding...' : 'Add Team'}
@@ -299,6 +304,8 @@ export function TeamManager({ league, teams }: TeamManagerProps) {
         </Card>
       )}
 
+      {canEditDraftOrder && <DraftOrderEditor league={league} teams={teams} />}
+
       {teams.length === 0 ? (
         <Card className="glass p-8 text-center">
           <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -317,7 +324,9 @@ export function TeamManager({ league, teams }: TeamManagerProps) {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {teams.map(team => (
+          {[...teams]
+            .sort((a, b) => a.draft_position - b.draft_position)
+            .map(team => (
             <TeamCard
               key={team.id}
               team={team}

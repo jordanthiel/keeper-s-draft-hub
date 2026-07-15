@@ -358,6 +358,84 @@ export type Database = {
           },
         ]
       }
+      pick_swaps: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          league_id: string
+          slot_a_original_team_id: string
+          slot_a_round: number
+          slot_b_original_team_id: string
+          slot_b_round: number
+          team_a_id: string
+          team_b_id: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          league_id: string
+          slot_a_original_team_id: string
+          slot_a_round: number
+          slot_b_original_team_id: string
+          slot_b_round: number
+          team_a_id: string
+          team_b_id: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          league_id?: string
+          slot_a_original_team_id?: string
+          slot_a_round?: number
+          slot_b_original_team_id?: string
+          slot_b_round?: number
+          team_a_id?: string
+          team_b_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pick_swaps_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_swaps_slot_a_original_team_id_fkey"
+            columns: ["slot_a_original_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_swaps_slot_b_original_team_id_fkey"
+            columns: ["slot_b_original_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_swaps_team_a_id_fkey"
+            columns: ["team_a_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_swaps_team_b_id_fkey"
+            columns: ["team_b_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pick_trades: {
         Row: {
           draft_pick_id: string
@@ -532,6 +610,14 @@ export type Database = {
           created_at: string
         }[]
       }
+      apply_pick_swaps: {
+        Args: { p_league_id: string; p_year: number }
+        Returns: number
+      }
+      apply_pick_swaps_to_mock: {
+        Args: { p_league_id: string; p_year: number }
+        Returns: number
+      }
       can_manage_league: {
         Args: { p_league_id: string }
         Returns: boolean
@@ -556,6 +642,35 @@ export type Database = {
       clear_mock_draft: {
         Args: { p_league_id: string; p_year?: number }
         Returns: undefined
+      }
+      delete_pick_swap: {
+        Args: { p_swap_id: string }
+        Returns: undefined
+      }
+      execute_pick_swap: {
+        Args: {
+          p_league_id: string
+          p_year: number
+          p_team_a_id: string
+          p_slot_a_original_team_id: string
+          p_slot_a_round: number
+          p_team_b_id: string
+          p_slot_b_original_team_id: string
+          p_slot_b_round: number
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: string
+          league_id: string
+          slot_a_original_team_id: string
+          slot_a_round: number
+          slot_b_original_team_id: string
+          slot_b_round: number
+          team_a_id: string
+          team_b_id: string
+          year: number
+        }
       }
       initialize_mock_draft: {
         Args: { p_league_id: string; p_year?: number }
@@ -603,6 +718,15 @@ export type Database = {
           year: number
         }
       }
+      pick_slot_owner: {
+        Args: {
+          p_league_id: string
+          p_year: number
+          p_original_team_id: string
+          p_round: number
+        }
+        Returns: string
+      }
       remove_keeper_with_code: {
         Args: { p_keeper_id: string; p_access_code: string }
         Returns: undefined
@@ -613,6 +737,10 @@ export type Database = {
       }
       reset_draft_board: {
         Args: { p_league_id: string; p_year?: number }
+        Returns: undefined
+      }
+      set_draft_order: {
+        Args: { p_league_id: string; p_team_ids: string[] }
         Returns: undefined
       }
       trade_pick_with_code: {

@@ -234,8 +234,8 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
             Danger zone
           </CardTitle>
           <CardDescription>
-            Reset the live draft board at any time. You must type RESET to confirm.
-            Pick ownership and keepers are kept; all player selections are cleared.
+            Uninitialize the draft board at any time (type RESET to confirm). You can then change
+            draft order and initialize again. Teams and keepers are kept.
           </CardDescription>
         </CardHeader>
         <CardContent>

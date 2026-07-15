@@ -96,6 +96,32 @@ export interface PickTrade {
   draft_pick?: DraftPick;
 }
 
+/** Even 1-for-1 pick swap (works before the board is initialized). */
+export interface PickSwap {
+  id: string;
+  league_id: string;
+  year: number;
+  team_a_id: string;
+  slot_a_original_team_id: string;
+  slot_a_round: number;
+  team_b_id: string;
+  slot_b_original_team_id: string;
+  slot_b_round: number;
+  created_at: string;
+  created_by: string | null;
+  team_a?: Team;
+  team_b?: Team;
+  slot_a_original_team?: Team;
+  slot_b_original_team?: Team;
+}
+
+/** A tradable pick slot identified by original owner + round. */
+export interface TradablePickSlot {
+  original_team_id: string;
+  round: number;
+  current_owner_id: string;
+}
+
 export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
 
 export const POSITION_COLORS: Record<Position, string> = {

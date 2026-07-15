@@ -182,17 +182,18 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   const draftedPlayerIds = picks.filter(p => p.player_id).map(p => p.player_id!);
   const keeperPlayerIds = keepers.map(k => k.player_id);
 
-  // Subscribe to realtime updates for the active board
+  // Live board only — mock drafts use optimistic cache updates (realtime refetch was slow in prod)
   useEffect(() => {
-    const table = mockMode ? 'mock_draft_picks' : 'draft_picks';
+    if (mockMode) return;
+
     const channel = supabase
-      .channel(`${table}-${league.id}`)
+      .channel(`draft_picks-${league.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table,
+          table: 'draft_picks',
           filter: `league_id=eq.${league.id}`,
         },
         () => {
@@ -315,6 +316,11 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   };
 
   const handleDraft = async (player: Player) => {
+    if (mockMode && makeMockPick.isPending) {
+      console.log('[mock-draft]', 'handleDraft:ignored — pick already in flight');
+      return;
+    }
+
     if (!currentPick) {
       setErrorModal({
         open: true,
@@ -374,8 +380,19 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
 
     try {
       if (mockMode) {
+        console.log('[mock-draft]', new Date().toISOString(), 'handleDraft:start', {
+          pickId: currentPick.id,
+          pickNumber: currentPick.pick_number,
+          round: currentPick.round,
+          playerId: player.id,
+          player: player.full_name,
+          cacheHasPick: mockPicks.some((p) => p.id === currentPick.id),
+          cacheSize: mockPicks.length,
+        });
+
         // Guard against stale pick IDs from a previous mock session still in memory
         if (!mockPicks.some((p) => p.id === currentPick.id)) {
+          console.warn('[mock-draft]', 'stale pick id — refetching board');
           await refetchMock();
           setErrorModal({
             open: true,
@@ -384,11 +401,17 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
           });
           return;
         }
+
+        const t0 = performance.now();
         await makeMockPick.mutateAsync({
           pickId: currentPick.id,
           playerId: player.id,
           leagueId: league.id,
           year: currentYear,
+          player,
+        });
+        console.log('[mock-draft]', new Date().toISOString(), 'handleDraft:done', {
+          ms: Math.round(performance.now() - t0),
         });
         return;
       }
@@ -402,6 +425,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         access_code: getAccessCode(league.id),
       });
     } catch (error) {
+      console.error('[mock-draft]', 'handleDraft:error', error);
       const message = error instanceof Error ? error.message : 'Could not make this pick.';
       setErrorModal({
         open: true,
@@ -422,7 +446,14 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       });
       return;
     }
-    await initializeMock.mutateAsync({ leagueId: league.id, year: currentYear });
+    console.log('[mock-draft]', new Date().toISOString(), 'enterMockMode:start', {
+      leagueId: league.id,
+    });
+    const result = await initializeMock.mutateAsync({ leagueId: league.id, year: currentYear });
+    console.log('[mock-draft]', new Date().toISOString(), 'enterMockMode:initialized', {
+      count: result.count,
+      firstPickId: result.picks[0]?.id,
+    });
     clearClock(league.id, true);
     trackedPickIdRef.current = null;
     endsAtRef.current = null;
@@ -607,43 +638,49 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   if (!boardReady && !mockMode) {
     return (
       <div className="space-y-6">
-        <div className="glass rounded-lg p-8 md:p-10 text-center space-y-3">
-          <Columns3 className="h-14 w-14 mx-auto text-muted-foreground" />
-          <h3 className="text-xl font-semibold">Draft Not Initialized</h3>
-          <p className="text-muted-foreground max-w-lg mx-auto">
-            {teams.length < 2
-              ? `Add at least 2 teams to set up the draft (currently ${teams.length}).`
-              : isAdmin
-                ? 'Set the draft order below, then initialize the board. You can also run a private mock draft.'
-                : 'Waiting for the league admin to initialize the draft.'}
-          </p>
-        </div>
+        <Card className="glass p-6 md:p-8 relative z-20">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2 min-w-0">
+              <div className="flex items-center gap-3">
+                <Columns3 className="h-8 w-8 text-muted-foreground shrink-0" />
+                <h3 className="text-xl font-semibold">Draft Not Initialized</h3>
+              </div>
+              <p className="text-muted-foreground max-w-xl">
+                {teams.length < 2
+                  ? `Add at least 2 teams to set up the draft (currently ${teams.length}).`
+                  : isAdmin
+                    ? 'Set the draft order below, then initialize the live board — or run a private mock draft first.'
+                    : 'Waiting for the league admin to initialize the draft.'}
+              </p>
+            </div>
+
+            {isAdmin && teams.length >= 2 && (
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <Button
+                  onClick={handleInitializeDraft}
+                  disabled={!canInitializeDraft || initializePicks.isPending}
+                  size="lg"
+                  className="glow-primary"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft'}
+                </Button>
+                <Button
+                  onClick={enterMockMode}
+                  disabled={initializeMock.isPending}
+                  variant="secondary"
+                  size="lg"
+                >
+                  <FlaskConical className="h-4 w-4 mr-2" />
+                  {initializeMock.isPending ? 'Starting mock...' : 'Mock Draft'}
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {isAdmin && teams.length >= 2 && (
-          <>
-            <DraftOrderEditor league={league} teams={teams} />
-
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button
-                onClick={handleInitializeDraft}
-                disabled={!canInitializeDraft || initializePicks.isPending}
-                size="lg"
-                className="glow-primary"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft Picks'}
-              </Button>
-              <Button
-                onClick={enterMockMode}
-                disabled={initializeMock.isPending}
-                variant="secondary"
-                size="lg"
-              >
-                <FlaskConical className="h-4 w-4 mr-2" />
-                {initializeMock.isPending ? 'Starting mock...' : 'Run Mock Draft'}
-              </Button>
-            </div>
-          </>
+          <DraftOrderEditor league={league} teams={teams} />
         )}
       </div>
     );

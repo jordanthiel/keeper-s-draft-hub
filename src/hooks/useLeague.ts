@@ -9,6 +9,7 @@ import {
   PickTrade,
   PickSwap,
   TradablePickSlot,
+  Player,
   priorSeasonYear,
 } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -189,7 +190,14 @@ export function useDraftPicks(leagueId: string | undefined, year: number) {
   });
 }
 
+function mockLog(...args: unknown[]) {
+  // Always log in prod for now — filter DevTools by "[mock-draft]"
+  console.log('[mock-draft]', new Date().toISOString(), ...args);
+}
+
 async function fetchMockDraftPicks(leagueId: string, year: number) {
+  const t0 = performance.now();
+  mockLog('fetchMockDraftPicks:start', { leagueId, year });
   const { data, error } = await supabase
     .from('mock_draft_picks')
     .select(`
@@ -203,6 +211,11 @@ async function fetchMockDraftPicks(leagueId: string, year: number) {
     .order('round')
     .order('pick_number');
 
+  mockLog('fetchMockDraftPicks:done', {
+    ms: Math.round(performance.now() - t0),
+    count: data?.length ?? 0,
+    error: error?.message,
+  });
   if (error) throw error;
   return data as DraftPick[];
 }
@@ -998,18 +1011,46 @@ export function useInitializeMockDraft() {
 
   return useMutation({
     mutationFn: async ({ leagueId, year }: { leagueId: string; year: number }) => {
+      const t0 = performance.now();
+      mockLog('initialize:start', { leagueId, year });
+
       // Drop stale pick IDs immediately so the UI can't submit deleted rows
       queryClient.setQueryData(['mock_draft_picks', leagueId, year], []);
 
+      const rpcStart = performance.now();
       const { data, error } = await supabase.rpc('initialize_mock_draft', {
         p_league_id: leagueId,
         p_year: year,
+      });
+      mockLog('initialize:rpc', {
+        ms: Math.round(performance.now() - rpcStart),
+        count: data,
+        error: error?.message,
       });
       if (error) throw error;
 
       // Seed cache with fresh IDs before mock mode is enabled (query is disabled until then)
       const picks = await fetchMockDraftPicks(leagueId, year);
       queryClient.setQueryData(['mock_draft_picks', leagueId, year], picks);
+
+      // Warm the make_mock_pick RPC path so the first real pick isn't a cold PostgREST hit
+      const warmStart = performance.now();
+      const warm = await supabase.rpc('make_mock_pick', {
+        p_pick_id: '00000000-0000-0000-0000-000000000000',
+        p_player_id: '__warmup__',
+      });
+      mockLog('initialize:warmup_rpc', {
+        ms: Math.round(performance.now() - warmStart),
+        // Expected to fail — we only care that PostgREST resolved the function
+        error: warm.error?.message ?? null,
+        code: warm.error?.code ?? null,
+      });
+
+      mockLog('initialize:done', {
+        ms: Math.round(performance.now() - t0),
+        picks: picks.length,
+        firstPickId: picks[0]?.id,
+      });
 
       return { leagueId, year, count: data as number, picks };
     },
@@ -1020,6 +1061,7 @@ export function useInitializeMockDraft() {
       });
     },
     onError: (error) => {
+      mockLog('initialize:error', error.message);
       toast({ title: 'Could not start mock draft', description: error.message, variant: 'destructive' });
     },
   });
@@ -1035,29 +1077,87 @@ export function useMakeMockPick() {
       playerId,
       leagueId,
       year,
+      player,
     }: {
       pickId: string;
       playerId: string;
       leagueId: string;
       year: number;
+      player: Player;
     }) => {
+      const t0 = performance.now();
+      mockLog('pick:rpc:start', { pickId, playerId, player: player.full_name });
+
       const { data, error } = await supabase.rpc('make_mock_pick', {
         p_pick_id: pickId,
         p_player_id: playerId,
       });
+
+      mockLog('pick:rpc:done', {
+        ms: Math.round(performance.now() - t0),
+        error: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        returnedId: data && typeof data === 'object' && 'id' in data ? (data as { id: string }).id : null,
+      });
+
       if (error) {
         const details = [error.message, error.hint, error.details].filter(Boolean).join(' — ');
         throw new Error(details || 'Mock pick failed');
       }
-      return { pick: data, leagueId, year };
+      return { pick: data as DraftPick, leagueId, year, player };
     },
-    onSuccess: async (data) => {
-      // Keep board in sync without waiting on a slow invalidate/refetch path
-      const picks = await fetchMockDraftPicks(data.leagueId, data.year);
-      queryClient.setQueryData(['mock_draft_picks', data.leagueId, data.year], picks);
+    onMutate: async ({ pickId, leagueId, year, player }) => {
+      const key = ['mock_draft_picks', leagueId, year] as const;
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<DraftPick[]>(key);
+
+      const pickedAt = new Date().toISOString();
+      queryClient.setQueryData<DraftPick[]>(key, (old = []) =>
+        old.map((p) =>
+          p.id === pickId
+            ? {
+                ...p,
+                player_id: player.id,
+                picked_at: pickedAt,
+                player,
+              }
+            : p
+        )
+      );
+
+      mockLog('pick:optimistic', {
+        pickId,
+        player: player.full_name,
+        prevHadPick: previous?.some((p) => p.id === pickId && !!p.player_id) ?? false,
+        cacheSize: previous?.length ?? 0,
+      });
+
+      return { previous, key };
     },
-    onError: (error) => {
+    onError: (error, _vars, context) => {
+      mockLog('pick:error', error.message);
+      if (context?.previous) {
+        queryClient.setQueryData(context.key, context.previous);
+      }
       toast({ title: 'Error making mock pick', description: error.message, variant: 'destructive' });
+    },
+    onSuccess: (data) => {
+      // Merge server row into cache — keep the player we already have (no heavy refetch)
+      const key = ['mock_draft_picks', data.leagueId, data.year] as const;
+      queryClient.setQueryData<DraftPick[]>(key, (old = []) =>
+        old.map((p) =>
+          p.id === data.pick.id
+            ? {
+                ...p,
+                ...data.pick,
+                player: data.player ?? p.player,
+              }
+            : p
+        )
+      );
+      mockLog('pick:success:cache_patched', { pickId: data.pick.id });
     },
   });
 }

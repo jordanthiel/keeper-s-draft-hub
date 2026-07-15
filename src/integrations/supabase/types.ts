@@ -698,6 +698,22 @@ export type Database = {
           access_code: string
         }[]
       }
+      make_mock_pick: {
+        Args: { p_pick_id: string; p_player_id: string }
+        Returns: {
+          created_at: string
+          current_team_id: string
+          id: string
+          is_keeper: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number: number | null
+          picked_at: string | null
+          player_id: string | null
+          round: number
+          year: number
+        }
+      }
       make_pick_with_code: {
         Args: {
           p_pick_id: string

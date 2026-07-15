@@ -1030,15 +1030,10 @@ export function useMakeMockPick() {
       leagueId: string;
       year: number;
     }) => {
-      const { data, error } = await supabase
-        .from('mock_draft_picks')
-        .update({
-          player_id: playerId,
-          picked_at: new Date().toISOString(),
-        })
-        .eq('id', pickId)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('make_mock_pick', {
+        p_pick_id: pickId,
+        p_player_id: playerId,
+      });
       if (error) throw error;
       return { pick: data, leagueId, year };
     },

@@ -310,7 +310,16 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   };
 
   const handleDraft = async (player: Player) => {
-    if (!currentPick) return;
+    if (!currentPick) {
+      setErrorModal({
+        open: true,
+        title: 'NO PICK AVAILABLE',
+        message: mockMode
+          ? 'Start the mock draft first, then select a player.'
+          : 'There is no pick currently on the clock.',
+      });
+      return;
+    }
 
     const canPickForTeam =
       mockMode || isAdmin || accessedTeamId === currentPick.current_team_id;
@@ -323,7 +332,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       return;
     }
 
-    // Check if already drafted
+    // Check if already drafted (on this board — live or mock)
     if (draftedPlayerIds.includes(player.id)) {
       setErrorModal({
         open: true,
@@ -333,8 +342,8 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       return;
     }
 
-    // Check if player is a keeper
-    if (keeperPlayerIds.includes(player.id)) {
+    // Keepers block live drafts only — mock drafts can practice with anyone
+    if (!mockMode && keeperPlayerIds.includes(player.id)) {
       setErrorModal({
         open: true,
         title: "THAT'S A KEEPER!",
@@ -343,8 +352,8 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       return;
     }
 
-    // Check position limits
-    if (player.position) {
+    // Position limits for live drafts only
+    if (!mockMode && player.position) {
       const counts = getPositionCounts(currentPick.current_team_id);
       const limit = getPositionLimit(player.position);
       
@@ -358,29 +367,46 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       }
     }
 
-    if (mockMode) {
-      await makeMockPick.mutateAsync({
+    try {
+      if (mockMode) {
+        await makeMockPick.mutateAsync({
+          pickId: currentPick.id,
+          playerId: player.id,
+          leagueId: league.id,
+          year: currentYear,
+        });
+        return;
+      }
+
+      await makePick.mutateAsync({
         pickId: currentPick.id,
         playerId: player.id,
         leagueId: league.id,
         year: currentYear,
+        asAdmin: isAdmin,
+        access_code: getAccessCode(league.id),
       });
-      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not make this pick.';
+      setErrorModal({
+        open: true,
+        title: 'PICK FAILED',
+        message,
+      });
     }
-
-    await makePick.mutateAsync({
-      pickId: currentPick.id,
-      playerId: player.id,
-      leagueId: league.id,
-      year: currentYear,
-      asAdmin: isAdmin,
-      access_code: getAccessCode(league.id),
-    });
   };
 
   const enterMockMode = async () => {
     // Mock is only allowed before the real board is initialized
-    if (!isAdmin || teams.length < 2 || livePicks.length > 0) return;
+    if (!isAdmin || teams.length < 2) return;
+    if (livePicks.length > 0) {
+      setErrorModal({
+        open: true,
+        title: 'MOCK UNAVAILABLE',
+        message: 'Reset the live draft board before running a mock draft.',
+      });
+      return;
+    }
     await initializeMock.mutateAsync({ leagueId: league.id, year: currentYear });
     clearClock(league.id, true);
     trackedPickIdRef.current = null;

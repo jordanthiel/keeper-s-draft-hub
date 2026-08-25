@@ -734,6 +734,10 @@ export type Database = {
           year: number
         }
       }
+      player_is_league_keeper: {
+        Args: { p_league_id: string; p_player_id: string }
+        Returns: boolean
+      }
       pick_slot_owner: {
         Args: {
           p_league_id: string

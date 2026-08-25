@@ -375,25 +375,17 @@ export function useAllKeepers(leagueId: string | undefined) {
     queryKey: ['all_keepers', leagueId],
     queryFn: async () => {
       if (!leagueId) return [];
-      
-      // First get all teams for this league
-      const { data: teams, error: teamsError } = await supabase
-        .from('teams')
-        .select('id')
-        .eq('league_id', leagueId);
-      
-      if (teamsError) throw teamsError;
-      
-      const teamIds = teams.map(t => t.id);
-      
+
+      // Inner-join teams so we filter by league in one query (avoids empty .in()).
       const { data, error } = await supabase
         .from('keepers')
         .select(`
           *,
-          player:players(*)
+          player:players(*),
+          team:teams!inner(league_id)
         `)
-        .in('team_id', teamIds);
-      
+        .eq('team.league_id', leagueId);
+
       if (error) throw error;
       return data as Keeper[];
     },

@@ -180,7 +180,8 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   // Get current pick info
   const currentPick = picks.find(p => !p.player_id && !p.is_keeper);
   const draftedPlayerIds = picks.filter(p => p.player_id).map(p => p.player_id!);
-  const keeperPlayerIds = keepers.map(k => k.player_id);
+  // Keepers stay searchable so selecting one surfaces the duplicate/keeper modal.
+  const keeperPlayerIds = keepers.map(k => k.player_id).filter(Boolean);
 
   // Live board only — mock drafts use optimistic cache updates (realtime refetch was slow in prod)
   useEffect(() => {
@@ -353,8 +354,8 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
       return;
     }
 
-    // Keepers block live drafts only — mock drafts can practice with anyone
-    if (!mockMode && keeperPlayerIds.includes(player.id)) {
+    // Keepers are already taken — block live and mock
+    if (keeperPlayerIds.includes(player.id)) {
       setErrorModal({
         open: true,
         title: "THAT'S A KEEPER!",
@@ -808,6 +809,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
             {mockMode || isAdmin || accessedTeamId === currentPick.current_team_id ? (
               <PlayerSearch
                 onSelect={handleDraft}
+                excludePlayerIds={draftedPlayerIds}
                 placeholder={`Search for a player for ${currentTeam?.name}...`}
                 autoFocus
               />

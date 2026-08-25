@@ -109,6 +109,17 @@ export default function TeamPage() {
   const session = leagueId ? getAccess(leagueId) : null;
   const isLoading = leagueLoading || teamsLoading;
   const draftInitialized = picks.length > 0;
+  const leaguePath = leagueId ? `/league/${leagueId}` : '/';
+
+  const goBack = () => {
+    // React Router stores the history index in location state.
+    const idx = (window.history.state as { idx?: number } | null)?.idx;
+    if (typeof idx === 'number' && idx > 0) {
+      navigate(-1);
+    } else {
+      navigate(leaguePath);
+    }
+  };
 
   const teamPicks = picks
     .filter(p => p.current_team_id === teamId)
@@ -212,12 +223,10 @@ export default function TeamPage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-display">Team not found</h1>
-          <Link to="/">
-            <Button>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Home
-            </Button>
-          </Link>
+          <Button onClick={goBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
         </div>
       </div>
     );
@@ -228,11 +237,9 @@ export default function TeamPage() {
       <div className="min-h-screen bg-background">
         <header className="border-b border-border">
           <div className="container max-w-3xl py-4 flex items-center gap-3">
-            <Link to="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
+            <Button variant="ghost" size="icon" onClick={goBack} aria-label="Go back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <div>
               <h1 className="text-xl font-display">{team.name}</h1>
               <p className="text-sm text-muted-foreground">{league.name}</p>
@@ -312,11 +319,9 @@ export default function TeamPage() {
       <header className="border-b border-border sticky top-0 z-40 bg-background/95 backdrop-blur">
         <div className="container max-w-3xl py-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            <Link to="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
+            <Button variant="ghost" size="icon" onClick={goBack} aria-label="Go back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-display truncate">{team.name}</h1>

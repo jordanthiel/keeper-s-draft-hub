@@ -643,6 +643,31 @@ export type Database = {
         Args: { p_league_id: string; p_year?: number }
         Returns: undefined
       }
+      duplicate_league: {
+        Args: { p_source_league_id: string; p_new_name?: string | null }
+        Returns: {
+          admin_user_id: string | null
+          bench_slots: number
+          created_at: string
+          current_pick: number | null
+          current_round: number | null
+          def_slots: number
+          draft_status: string
+          draft_time_seconds: number
+          flex_slots: number
+          id: string
+          k_slots: number
+          name: string
+          num_keepers: number
+          num_rounds: number
+          num_teams: number
+          qb_slots: number
+          rb_slots: number
+          te_slots: number
+          updated_at: string
+          wr_slots: number
+        }
+      }
       delete_pick_swap: {
         Args: { p_swap_id: string }
         Returns: undefined

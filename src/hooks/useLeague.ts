@@ -423,6 +423,43 @@ export function useCreateLeague() {
   });
 }
 
+export function useDuplicateLeague() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      sourceLeagueId,
+      newName,
+    }: {
+      sourceLeagueId: string;
+      newName?: string | null;
+    }) => {
+      const { data, error } = await supabase.rpc('duplicate_league', {
+        p_source_league_id: sourceLeagueId,
+        p_new_name: newName?.trim() || null,
+      });
+      if (error) throw error;
+      return data as League;
+    },
+    onSuccess: (league) => {
+      queryClient.invalidateQueries({ queryKey: ['leagues'] });
+      queryClient.invalidateQueries({ queryKey: ['my_admin_leagues'] });
+      toast({
+        title: 'League duplicated',
+        description: `${league.name} is ready. Team access codes were regenerated.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not duplicate league',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
 export function useUpdateLeague() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

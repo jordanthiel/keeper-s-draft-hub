@@ -4,12 +4,13 @@ import { useUpdateLeague } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { AuthDialog } from '@/components/AuthDialog';
 import { ResetDraftDialog } from '@/components/ResetDraftDialog';
+import { DuplicateLeagueDialog } from '@/components/DuplicateLeagueDialog';
 import { LeagueAdminsManager } from '@/components/LeagueAdminsManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Save, Shield, TriangleAlert } from 'lucide-react';
+import { Settings, Save, Shield, TriangleAlert, Copy } from 'lucide-react';
 
 interface LeagueSettingsProps {
   league: League;
@@ -226,6 +227,22 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
       </form>
 
       <LeagueAdminsManager league={league} />
+
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Copy className="h-5 w-5 text-primary" />
+            Duplicate league
+          </CardTitle>
+          <CardDescription>
+            Create a full copy with teams, draft order, keepers, trades, and draft board state.
+            Access codes are regenerated for the new league.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DuplicateLeagueDialog league={league} />
+        </CardContent>
+      </Card>
 
       <Card className="glass border-destructive/40">
         <CardHeader>

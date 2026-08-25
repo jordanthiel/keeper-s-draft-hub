@@ -852,12 +852,17 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
         </span>
       </div>
 
-      {/* Draft Board Grid */}
-      <div className="overflow-x-auto">
+      {/* Draft Board Grid — single scrollport so sticky header + round column both work */}
+      <div className="overflow-auto max-h-[calc(100dvh-12rem)] rounded-lg border border-border">
         <div style={{ width: boardWidth, minWidth: boardWidth }}>
           {/* Team Headers */}
-          <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: boardColumns }}>
-            <div className="p-2 text-sm font-semibold text-muted-foreground">Round</div>
+          <div
+            className="grid gap-1 sticky top-0 z-20 bg-background pt-1 pb-2"
+            style={{ gridTemplateColumns: boardColumns }}
+          >
+            <div className="sticky left-0 z-30 p-2 text-sm font-semibold text-muted-foreground bg-background">
+              Round
+            </div>
             {teams.map(team => (
               <div 
                 key={team.id} 
@@ -891,7 +896,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
                 className="grid gap-1 mb-1" 
                 style={{ gridTemplateColumns: boardColumns }}
               >
-                <div className="flex items-center justify-center p-2 bg-muted/50 rounded-l-lg font-display text-lg">
+                <div className="sticky left-0 z-10 flex items-center justify-center p-2 bg-muted rounded-l-lg font-display text-lg shadow-[2px_0_6px_rgba(0,0,0,0.25)]">
                   {round}
                 </div>
                 
@@ -957,7 +962,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
                   className="grid gap-1 mb-1"
                   style={{ gridTemplateColumns: boardColumns }}
                 >
-                  <div className="flex items-center justify-center p-2 bg-accent/20 rounded-l-lg font-display text-sm text-accent">
+                  <div className="sticky left-0 z-10 flex items-center justify-center p-2 bg-card rounded-l-lg font-display text-sm text-accent shadow-[2px_0_6px_rgba(0,0,0,0.25)]">
                     K{slot + 1}
                   </div>
                   {teams.map(team => {

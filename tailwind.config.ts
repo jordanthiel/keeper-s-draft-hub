@@ -8,8 +8,9 @@ export default {
     container: {
       center: true,
       padding: "2rem",
+      // Always full viewport width (including when zoomed out)
       screens: {
-        "2xl": "1400px",
+        DEFAULT: "100%",
       },
     },
     extend: {

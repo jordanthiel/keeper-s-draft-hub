@@ -209,7 +209,7 @@ export default function TeamPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="container max-w-3xl py-8 space-y-4">
+        <div className="container py-8 space-y-4">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-40 w-full" />
           <Skeleton className="h-64 w-full" />
@@ -236,7 +236,7 @@ export default function TeamPage() {
     return (
       <div className="min-h-screen bg-background">
         <header className="border-b border-border">
-          <div className="container max-w-3xl py-4 flex items-center gap-3">
+          <div className="container py-4 flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={goBack} aria-label="Go back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -246,8 +246,8 @@ export default function TeamPage() {
             </div>
           </div>
         </header>
-        <main className="container max-w-md py-12">
-          <Card className="glass">
+        <main className="container py-12">
+          <Card className="glass max-w-md mx-auto">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <KeyRound className="h-5 w-5 text-primary" />
@@ -317,7 +317,7 @@ export default function TeamPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border sticky top-0 z-40 bg-background/95 backdrop-blur">
-        <div className="container max-w-3xl py-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="container py-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="icon" onClick={goBack} aria-label="Go back">
               <ArrowLeft className="h-5 w-5" />
@@ -357,7 +357,7 @@ export default function TeamPage() {
         </div>
       </header>
 
-      <main className="container max-w-3xl py-6 space-y-6">
+      <main className="container py-6 space-y-6">
         {/* Team info */}
         <div className={`grid gap-3 sm:grid-cols-2 ${draftInitialized ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {draftInitialized && (

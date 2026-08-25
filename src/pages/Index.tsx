@@ -25,7 +25,7 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="container py-8 space-y-8 max-w-3xl">
+      <main className="container py-8 space-y-8">
         <HomeTeamCodeEntry />
 
         {user && (

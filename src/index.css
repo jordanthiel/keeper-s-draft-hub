@@ -43,6 +43,9 @@
     --te: 280 70% 60%;
     --k: 320 70% 55%;
     --def: 25 80% 50%;
+    --dl: 15 75% 50%;
+    --lb: 200 40% 45%;
+    --db: 175 55% 40%;
 
     /* Draft board specific */
     --draft-current: 142 70% 45%;
@@ -118,6 +121,9 @@
   .position-te { @apply bg-[hsl(var(--te))] text-foreground; }
   .position-k { @apply bg-[hsl(var(--k))] text-foreground; }
   .position-def { @apply bg-[hsl(var(--def))] text-background; }
+  .position-dl { @apply bg-[hsl(var(--dl))] text-background; }
+  .position-lb { @apply bg-[hsl(var(--lb))] text-background; }
+  .position-db { @apply bg-[hsl(var(--db))] text-background; }
 
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50;

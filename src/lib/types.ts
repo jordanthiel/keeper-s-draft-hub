@@ -122,7 +122,16 @@ export interface TradablePickSlot {
   current_owner_id: string;
 }
 
-export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
+export type Position =
+  | 'QB'
+  | 'RB'
+  | 'WR'
+  | 'TE'
+  | 'K'
+  | 'DEF'
+  | 'DL'
+  | 'LB'
+  | 'DB';
 
 export const POSITION_COLORS: Record<Position, string> = {
   QB: 'position-qb',
@@ -131,4 +140,7 @@ export const POSITION_COLORS: Record<Position, string> = {
   TE: 'position-te',
   K: 'position-k',
   DEF: 'position-def',
+  DL: 'position-dl',
+  LB: 'position-lb',
+  DB: 'position-db',
 };

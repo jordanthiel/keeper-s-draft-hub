@@ -290,7 +290,17 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
 
   const getPositionCounts = (teamId: string) => {
     const teamPicks = picks.filter(p => p.current_team_id === teamId && p.player_id);
-    const counts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };
+    const counts: Record<string, number> = {
+      QB: 0,
+      RB: 0,
+      WR: 0,
+      TE: 0,
+      K: 0,
+      DEF: 0,
+      DL: 0,
+      LB: 0,
+      DB: 0,
+    };
     
     teamPicks.forEach(pick => {
       const pos = pick.player?.position;
@@ -315,8 +325,10 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
 
   const getPositionLimit = (position: string): number => {
     const slotKey = `${position.toLowerCase()}_slots` as keyof League;
-    const slots = league[slotKey] as number;
-    return slots + league.bench_slots; // Can fill position slots + bench
+    const slots = league[slotKey];
+    // Offense/DEF use configured slots; IDP (DL/LB/DB) and unknown use bench only
+    const base = typeof slots === 'number' ? slots : 0;
+    return base + league.bench_slots;
   };
 
   const handleDraft = async (player: Player) => {

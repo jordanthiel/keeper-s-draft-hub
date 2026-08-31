@@ -109,7 +109,6 @@ export default function LeaguePage() {
   }
 
   const canInitialize = canInitializeDraft && teams.length >= 2 && picks.length === 0;
-  const draftReady = picks.length > 0;
   const accessedTeam = accessedTeamId ? teams.find(t => t.id === accessedTeamId) : null;
 
   const handleInitializeDraft = async () => {
@@ -211,27 +210,19 @@ export default function LeaguePage() {
           </TabsList>
 
           <TabsContent value="draft">
-            {!draftReady && !isAdmin ? (
+            {teams.length < 2 ? (
               <div className="glass rounded-lg p-12 text-center">
                 <LayoutGrid className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Draft Not Initialized</h3>
                 <p className="text-muted-foreground mb-6">
-                  {teams.length < 2
-                    ? `Add at least 2 teams to initialize the draft (currently ${teams.length})`
-                    : 'Waiting for the league admin to initialize the draft'}
+                  Add at least 2 teams to set up the draft (currently {teams.length})
                 </p>
-              </div>
-            ) : !draftReady && isAdmin && teams.length < 2 ? (
-              <div className="glass rounded-lg p-12 text-center">
-                <LayoutGrid className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Draft Not Initialized</h3>
-                <p className="text-muted-foreground mb-6">
-                  Add at least 2 teams to initialize the draft or run a mock draft (currently {teams.length})
-                </p>
-                <Button onClick={() => handleTabChange('teams')}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Add Teams
-                </Button>
+                {isAdmin && (
+                  <Button onClick={() => handleTabChange('teams')}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Add Teams
+                  </Button>
+                )}
               </div>
             ) : (
               <DraftBoard league={league} teams={teams} />

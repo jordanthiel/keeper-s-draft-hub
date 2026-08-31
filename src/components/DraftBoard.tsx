@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   useDraftPicks,
   useMakePick,
@@ -9,6 +9,8 @@ import {
   useMakeMockPick,
   useClearMockDraft,
   useInitializeDraftPicks,
+  usePickSwaps,
+  buildSlotOwnershipMap,
 } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { useTeamAccess } from '@/contexts/TeamAccessContext';
@@ -22,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Play, Pause, RotateCcw, Clock, Star, Columns3, FlaskConical, EyeOff } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, Star, Columns3, FlaskConical, EyeOff, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -104,6 +106,7 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     }
   );
   const { data: keepers = [] } = useAllKeepers(league.id);
+  const { data: pickSwaps = [] } = usePickSwaps(league.id, currentYear);
   const makePick = useMakePick();
   const makeMockPick = useMakeMockPick();
   const updateLeague = useUpdateLeague();
@@ -612,6 +615,29 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
     ? Math.max(...teams.map(t => keepersByTeam[t.id]?.length ?? 0), 0)
     : 0;
 
+  const previewOwnership = useMemo(
+    () =>
+      buildSlotOwnershipMap({
+        teams,
+        numRounds: league.num_rounds,
+        year: currentYear,
+        swaps: pickSwaps,
+      }),
+    [teams, league.num_rounds, currentYear, pickSwaps]
+  );
+
+  const yearSwaps = useMemo(
+    () =>
+      [...pickSwaps]
+        .filter((s) => s.year === currentYear)
+        .sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime() ||
+            a.id.localeCompare(b.id)
+        ),
+    [pickSwaps, currentYear]
+  );
+
   const liveBoardReady = livePicks.length > 0;
   const boardReady = picks.length > 0;
 
@@ -644,14 +670,12 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
             <div className="space-y-2 min-w-0">
               <div className="flex items-center gap-3">
                 <Columns3 className="h-8 w-8 text-muted-foreground shrink-0" />
-                <h3 className="text-xl font-semibold">Draft Not Initialized</h3>
+                <h3 className="text-xl font-semibold">Draft preview</h3>
               </div>
               <p className="text-muted-foreground max-w-xl">
-                {teams.length < 2
-                  ? `Add at least 2 teams to set up the draft (currently ${teams.length}).`
-                  : isAdmin
-                    ? 'Set the draft order below, then initialize the live board — or run a private mock draft first.'
-                    : 'Waiting for the league admin to initialize the draft.'}
+                {isAdmin
+                  ? 'Board not initialized yet. Draft order, keepers, and trades are shown below — initialize when ready, or run a private mock draft first.'
+                  : 'The live draft board is not initialized yet. Current draft order, keepers, and pick trades are shown below.'}
               </p>
             </div>
 
@@ -682,6 +706,160 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
 
         {isAdmin && teams.length >= 2 && (
           <DraftOrderEditor league={league} teams={teams} />
+        )}
+
+        {/* Preview board: positions, trade ownership, keepers */}
+        <div className="overflow-auto max-h-[calc(100dvh-12rem)] rounded-lg border border-border">
+          <div style={{ width: boardWidth, minWidth: boardWidth }}>
+            <div
+              className="grid gap-1 sticky top-0 z-20 bg-background pt-1 pb-2"
+              style={{ gridTemplateColumns: boardColumns }}
+            >
+              <div className="sticky left-0 z-30 p-2 text-sm font-semibold text-muted-foreground bg-background">
+                Round
+              </div>
+              {teams.map((team) => (
+                <div
+                  key={team.id}
+                  className="relative min-w-0 p-3 rounded-t-lg text-center bg-secondary select-none"
+                >
+                  <div className="font-display text-lg truncate">{team.name}</div>
+                  <div className="text-xs text-muted-foreground">#{team.draft_position}</div>
+                  <button
+                    type="button"
+                    aria-label={`Resize ${team.name} column`}
+                    className="absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none group"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      startColumnResize(team.id, event.clientX);
+                    }}
+                  >
+                    <span className="absolute inset-y-2 right-0 w-0.5 rounded-full bg-border group-hover:bg-primary group-active:bg-primary transition-colors" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {Array.from({ length: league.num_rounds }, (_, i) => i + 1).map((round) => (
+              <div
+                key={round}
+                className="grid gap-1 mb-1"
+                style={{ gridTemplateColumns: boardColumns }}
+              >
+                <div className="sticky left-0 z-10 flex items-center justify-center p-2 bg-muted rounded-l-lg font-display text-lg shadow-[2px_0_6px_rgba(0,0,0,0.25)]">
+                  {round}
+                </div>
+                {teams.map((team) => {
+                  const ownerId =
+                    previewOwnership.get(`${team.id}:${round}`) ?? team.id;
+                  const isTraded = ownerId !== team.id;
+                  const ownerTeam = isTraded
+                    ? teams.find((t) => t.id === ownerId)
+                    : null;
+
+                  return (
+                    <div
+                      key={team.id}
+                      className={cn(
+                        'min-w-0 p-2 rounded min-h-[60px] flex flex-col justify-center border-2 bg-muted/20',
+                        isTraded ? 'border-accent/40' : 'border-transparent'
+                      )}
+                    >
+                      {ownerTeam ? (
+                        <div className="text-xs text-accent text-center truncate">
+                          → {ownerTeam.name}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+            {maxKeepers > 0 && (
+              <div className="mt-4 pt-3 border-t border-accent/30">
+                <div className="flex items-center gap-2 px-2 pb-2 text-sm font-semibold text-accent">
+                  <Star className="h-4 w-4" />
+                  Keepers
+                </div>
+                {Array.from({ length: maxKeepers }, (_, slot) => (
+                  <div
+                    key={`preview-keeper-${slot}`}
+                    className="grid gap-1 mb-1"
+                    style={{ gridTemplateColumns: boardColumns }}
+                  >
+                    <div className="sticky left-0 z-10 flex items-center justify-center p-2 bg-card rounded-l-lg font-display text-sm text-accent shadow-[2px_0_6px_rgba(0,0,0,0.25)]">
+                      K{slot + 1}
+                    </div>
+                    {teams.map((team) => {
+                      const keeper = keepersByTeam[team.id]?.[slot];
+                      return (
+                        <div
+                          key={team.id}
+                          className={cn(
+                            'min-w-0 p-2 rounded min-h-[60px] flex flex-col justify-center border-2',
+                            keeper
+                              ? 'bg-accent/10 border-accent/30'
+                              : 'bg-muted/10 border-transparent'
+                          )}
+                        >
+                          {keeper?.player && (
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-1">
+                                <Star className="h-3 w-3 text-accent shrink-0" />
+                                <PositionBadge
+                                  position={keeper.player.position}
+                                  className="text-[10px]"
+                                />
+                              </div>
+                              <div className="text-sm font-semibold truncate">
+                                {keeper.player.full_name}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {keeper.player.team || 'FA'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {yearSwaps.length > 0 && (
+          <Card className="glass p-4">
+            <div className="flex items-center gap-2 mb-3 text-sm font-semibold">
+              <ArrowLeftRight className="h-4 w-4 text-primary" />
+              Pick trades ({currentYear})
+            </div>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              {yearSwaps.map((swap) => {
+                const teamA = teams.find((t) => t.id === swap.team_a_id);
+                const teamB = teams.find((t) => t.id === swap.team_b_id);
+                const slotA = teams.find((t) => t.id === swap.slot_a_original_team_id);
+                const slotB = teams.find((t) => t.id === swap.slot_b_original_team_id);
+                return (
+                  <li key={swap.id} className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <span className="font-medium text-foreground">{teamA?.name ?? 'Team'}</span>
+                    <span>
+                      R{swap.slot_a_round}
+                      {slotA && slotA.id !== swap.team_a_id ? ` (${slotA.name})` : ''}
+                    </span>
+                    <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="font-medium text-foreground">{teamB?.name ?? 'Team'}</span>
+                    <span>
+                      R{swap.slot_b_round}
+                      {slotB && slotB.id !== swap.team_b_id ? ` (${slotB.name})` : ''}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
         )}
       </div>
     );

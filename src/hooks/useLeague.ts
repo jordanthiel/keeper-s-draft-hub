@@ -287,6 +287,37 @@ export function usePickSwaps(leagueId: string | undefined, year?: number) {
   });
 }
 
+/** Map of `${original_team_id}:${round}` → current owner team id (pre-init via swaps). */
+export function buildSlotOwnershipMap(args: {
+  teams: Team[];
+  numRounds: number;
+  year: number;
+  swaps: PickSwap[];
+}): Map<string, string> {
+  const { teams, numRounds, year, swaps } = args;
+  const ownership = new Map<string, string>();
+  for (const team of teams) {
+    for (let round = 1; round <= numRounds; round++) {
+      ownership.set(`${team.id}:${round}`, team.id);
+    }
+  }
+
+  const yearSwaps = [...swaps]
+    .filter((s) => s.year === year)
+    .sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime() ||
+        a.id.localeCompare(b.id)
+    );
+
+  for (const swap of yearSwaps) {
+    ownership.set(`${swap.slot_a_original_team_id}:${swap.slot_a_round}`, swap.team_b_id);
+    ownership.set(`${swap.slot_b_original_team_id}:${swap.slot_b_round}`, swap.team_a_id);
+  }
+
+  return ownership;
+}
+
 /** Build tradable slots for a team (works before or after board init). */
 export function buildTradableSlots(args: {
   teams: Team[];
@@ -310,26 +341,7 @@ export function buildTradableSlots(args: {
       .sort((a, b) => a.round - b.round || a.original_team_id.localeCompare(b.original_team_id));
   }
 
-  const ownership = new Map<string, string>();
-  for (const team of teams) {
-    for (let round = 1; round <= numRounds; round++) {
-      ownership.set(`${team.id}:${round}`, team.id);
-    }
-  }
-
-  const yearSwaps = [...swaps]
-    .filter((s) => s.year === year)
-    .sort(
-      (a, b) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime() ||
-        a.id.localeCompare(b.id)
-    );
-
-  for (const swap of yearSwaps) {
-    ownership.set(`${swap.slot_a_original_team_id}:${swap.slot_a_round}`, swap.team_b_id);
-    ownership.set(`${swap.slot_b_original_team_id}:${swap.slot_b_round}`, swap.team_a_id);
-  }
-
+  const ownership = buildSlotOwnershipMap({ teams, numRounds, year, swaps });
   const slots: TradablePickSlot[] = [];
   for (const [key, owner] of ownership) {
     if (owner !== ownerTeamId) continue;

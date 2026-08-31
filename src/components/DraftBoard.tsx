@@ -665,44 +665,28 @@ export function DraftBoard({ league, teams }: DraftBoardProps) {
   if (!boardReady && !mockMode) {
     return (
       <div className="space-y-6">
-        <Card className="glass p-6 md:p-8 relative z-20">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2 min-w-0">
-              <div className="flex items-center gap-3">
-                <Columns3 className="h-8 w-8 text-muted-foreground shrink-0" />
-                <h3 className="text-xl font-semibold">Draft preview</h3>
-              </div>
-              <p className="text-muted-foreground max-w-xl">
-                {isAdmin
-                  ? 'Board not initialized yet. Draft order, keepers, and trades are shown below — initialize when ready, or run a private mock draft first.'
-                  : 'The live draft board is not initialized yet. Current draft order, keepers, and pick trades are shown below.'}
-              </p>
-            </div>
-
-            {isAdmin && teams.length >= 2 && (
-              <div className="flex flex-wrap items-center gap-3 shrink-0">
-                <Button
-                  onClick={handleInitializeDraft}
-                  disabled={!canInitializeDraft || initializePicks.isPending}
-                  size="lg"
-                  className="glow-primary"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft'}
-                </Button>
-                <Button
-                  onClick={enterMockMode}
-                  disabled={initializeMock.isPending}
-                  variant="secondary"
-                  size="lg"
-                >
-                  <FlaskConical className="h-4 w-4 mr-2" />
-                  {initializeMock.isPending ? 'Starting mock...' : 'Mock Draft'}
-                </Button>
-              </div>
-            )}
+        {isAdmin && teams.length >= 2 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={handleInitializeDraft}
+              disabled={!canInitializeDraft || initializePicks.isPending}
+              size="lg"
+              className="glow-primary"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {initializePicks.isPending ? 'Initializing...' : 'Initialize Draft'}
+            </Button>
+            <Button
+              onClick={enterMockMode}
+              disabled={initializeMock.isPending}
+              variant="secondary"
+              size="lg"
+            >
+              <FlaskConical className="h-4 w-4 mr-2" />
+              {initializeMock.isPending ? 'Starting mock...' : 'Mock Draft'}
+            </Button>
           </div>
-        </Card>
+        )}
 
         {isAdmin && teams.length >= 2 && (
           <DraftOrderEditor league={league} teams={teams} />

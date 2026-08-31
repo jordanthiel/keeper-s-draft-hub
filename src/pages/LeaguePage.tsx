@@ -1,14 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useLeague, useTeams, useInitializeDraftPicks, useDraftPicks } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
-import { useAuth } from '@/contexts/AuthContext';
 import { DraftBoard } from '@/components/DraftBoard';
 import { TeamManager } from '@/components/TeamManager';
 import { LeagueSettings } from '@/components/LeagueSettings';
 import { PickTrader } from '@/components/PickTrader';
-import { AuthDialog } from '@/components/AuthDialog';
-import { TeamAccessDialog } from '@/components/TeamAccessDialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -18,14 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 const LEAGUE_TABS = ['draft', 'teams', 'trades', 'settings'] as const;
 type LeagueTab = (typeof LEAGUE_TABS)[number];
 
-function tabStorageKey(leagueId: string) {
-  return `league-tab-${leagueId}`;
-}
-
-function readStoredTab(leagueId: string | undefined): LeagueTab | null {
-  if (!leagueId) return null;
-  const stored = localStorage.getItem(tabStorageKey(leagueId));
-  return LEAGUE_TABS.includes(stored as LeagueTab) ? (stored as LeagueTab) : null;
+function isLeagueTab(value: string | null): value is LeagueTab {
+  return LEAGUE_TABS.includes(value as LeagueTab);
 }
 
 export default function LeaguePage() {
@@ -36,12 +27,6 @@ export default function LeaguePage() {
   const currentYear = new Date().getFullYear();
   const { data: picks = [] } = useDraftPicks(id, currentYear);
   const initializePicks = useInitializeDraftPicks();
-  const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<LeagueTab>(() => {
-    if (LEAGUE_TABS.includes(tabFromUrl as LeagueTab)) return tabFromUrl as LeagueTab;
-    return readStoredTab(id) ?? 'teams';
-  });
-  const { user } = useAuth();
   const {
     isAdmin,
     canInitializeDraft,
@@ -51,34 +36,25 @@ export default function LeaguePage() {
 
   const isLoading = leagueLoading || teamsLoading;
 
-  useEffect(() => {
-    const resolveTab = (tab: LeagueTab): LeagueTab =>
-      tab === 'settings' && !isAdmin ? (picks.length > 0 ? 'draft' : 'teams') : tab;
+  const tabFromUrl = searchParams.get('tab');
+  const requestedTab: LeagueTab = isLeagueTab(tabFromUrl) ? tabFromUrl : 'draft';
+  const activeTab: LeagueTab =
+    requestedTab === 'settings' && !isAdmin ? 'draft' : requestedTab;
 
-    if (LEAGUE_TABS.includes(tabFromUrl as LeagueTab)) {
-      setActiveTab(resolveTab(tabFromUrl as LeagueTab));
-      return;
-    }
-    const stored = readStoredTab(id);
-    if (stored) {
-      setActiveTab(resolveTab(stored));
-      return;
-    }
-    if (!isLoading) {
-      setActiveTab(picks.length > 0 ? 'draft' : 'teams');
-    }
-  }, [id, isAdmin, isLoading, picks.length, tabFromUrl]);
+  // Keep ?tab= in the URL so links can deep-link (default: draft)
+  useEffect(() => {
+    if (tabFromUrl === activeTab) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', activeTab);
+    setSearchParams(next, { replace: true });
+  }, [activeTab, tabFromUrl, searchParams, setSearchParams]);
 
   const handleTabChange = (value: string) => {
-    const tab = value as LeagueTab;
-    setActiveTab(tab);
-    if (id) {
-      localStorage.setItem(tabStorageKey(id), tab);
-    }
-    if (searchParams.has('tab')) {
-      searchParams.delete('tab');
-      setSearchParams(searchParams, { replace: true });
-    }
+    const tab = (isLeagueTab(value) ? value : 'draft') as LeagueTab;
+    const resolved = tab === 'settings' && !isAdmin ? 'draft' : tab;
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', resolved);
+    setSearchParams(next, { replace: true });
   };
 
   if (isLoading) {
@@ -160,8 +136,6 @@ export default function LeaguePage() {
                   </Button>
                 </Link>
               )}
-              <TeamAccessDialog leagueId={league.id} />
-              <AuthDialog />
               {canInitialize && (
                 <Button
                   onClick={handleInitializeDraft}
@@ -175,14 +149,6 @@ export default function LeaguePage() {
               )}
             </div>
           </div>
-
-          {!isAdmin && !accessedTeam && (
-            <p className="text-sm text-muted-foreground">
-              {user
-                ? 'You are signed in, but not an admin of this league. Enter a team access code to manage a team.'
-                : 'Viewing as guest. Enter a team access code to edit your team, or sign in as a league admin.'}
-            </p>
-          )}
         </div>
       </header>
 

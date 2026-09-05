@@ -26,6 +26,16 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -130,6 +140,13 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
   const [autoDraftRunning, setAutoDraftRunning] = useState(false);
   const autoDraftRef = useRef(false);
   const [editingPick, setEditingPick] = useState<DraftPick | null>(null);
+  const [adminOverride, setAdminOverride] = useState<{
+    pickId: string;
+    player: Player;
+    title: string;
+    message: string;
+    source: 'on_clock' | 'edit_pick';
+  } | null>(null);
 
   const teamIdsKey = teams.map(t => t.id).join(',');
 
@@ -364,23 +381,35 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       return;
     }
 
+    const queueAdminOverride = (title: string, message: string) => {
+      if (!isAdmin) {
+        setErrorModal({ open: true, title, message });
+        return;
+      }
+      setAdminOverride({
+        pickId: currentPick.id,
+        player,
+        title,
+        message,
+        source: 'on_clock',
+      });
+    };
+
     // Check if already drafted (on this board — live or mock)
     if (draftedPlayerIds.includes(player.id)) {
-      setErrorModal({
-        open: true,
-        title: "ALREADY DRAFTED!",
-        message: `${player.full_name} has already been drafted. Pay attention to what's happening, you absolute walnut.`,
-      });
+      queueAdminOverride(
+        'ALREADY DRAFTED!',
+        `${player.full_name} has already been drafted.${isAdmin ? ' Admin can override and assign anyway.' : ''}`
+      );
       return;
     }
 
     // Keepers are already taken — block live and mock
     if (keeperPlayerIds.includes(player.id)) {
-      setErrorModal({
-        open: true,
-        title: "THAT'S A KEEPER!",
-        message: `${player.full_name} is already someone's keeper. You can't draft them, genius.`,
-      });
+      queueAdminOverride(
+        "THAT'S A KEEPER!",
+        `${player.full_name} is already someone's keeper.${isAdmin ? ' Admin can override and assign anyway.' : ''}`
+      );
       return;
     }
 
@@ -391,11 +420,10 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       const limit = getPositionLimit(normalizedPos);
 
       if ((counts[normalizedPos] ?? 0) >= limit) {
-        setErrorModal({
-          open: true,
-          title: "TOO MANY AT THAT POSITION!",
-          message: `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}. What are you even doing?`,
-        });
+        queueAdminOverride(
+          'TOO MANY AT THAT POSITION!',
+          `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}.${isAdmin ? ' Admin can override and pick anyway.' : ''}`
+        );
         return;
       }
     }
@@ -454,6 +482,60 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
         title: 'PICK FAILED',
         message,
       });
+    }
+  };
+
+  const confirmAdminOverridePick = async () => {
+    try {
+      if (adminOverride.source === 'edit_pick') {
+        await editPick.mutateAsync({
+          pickId: adminOverride.pickId,
+          playerId: adminOverride.player.id,
+          leagueId: league.id,
+          year: currentYear,
+          mock: mockMode,
+          player: adminOverride.player,
+        });
+        setEditingPick(null);
+      } else {
+        if (!currentPick || currentPick.id !== adminOverride.pickId) {
+          setAdminOverride(null);
+          setErrorModal({
+            open: true,
+            title: 'PICK MOVED',
+            message: 'The pick on the clock changed. Try selecting the player again.',
+          });
+          return;
+        }
+
+        if (mockMode) {
+          await editPick.mutateAsync({
+            pickId: currentPick.id,
+            playerId: adminOverride.player.id,
+            leagueId: league.id,
+            year: currentYear,
+            mock: true,
+            player: adminOverride.player,
+          });
+        } else {
+        await makePick.mutateAsync({
+          pickId: currentPick.id,
+          playerId: adminOverride.player.id,
+          leagueId: league.id,
+          year: currentYear,
+          asAdmin: true,
+        });
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not make this pick.';
+      setErrorModal({
+        open: true,
+        title: 'OVERRIDE FAILED',
+        message,
+      });
+    } finally {
+      setAdminOverride(null);
     }
   };
 
@@ -708,23 +790,34 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
 
   const handleAdminEditSelect = async (player: Player) => {
     if (!editingPick) return;
+    const queueAdminOverrideForEdit = (title: string, message: string) => {
+      if (!isAdmin) {
+        setErrorModal({ open: true, title, message });
+        return;
+      }
+      setAdminOverride({
+        pickId: editingPick.id,
+        player,
+        title,
+        message,
+        source: 'edit_pick',
+      });
+    };
 
     if (keeperPlayerIds.includes(player.id)) {
-      setErrorModal({
-        open: true,
-        title: "THAT'S A KEEPER!",
-        message: `${player.full_name} is already someone's keeper.`,
-      });
+      queueAdminOverrideForEdit(
+        "THAT'S A KEEPER!",
+        `${player.full_name} is already someone's keeper. Admin can override and assign anyway.`
+      );
       return;
     }
 
     const takenElsewhere = draftedPlayerIds.includes(player.id) && editingPick.player_id !== player.id;
     if (takenElsewhere) {
-      setErrorModal({
-        open: true,
-        title: 'ALREADY DRAFTED!',
-        message: `${player.full_name} is already on another pick.`,
-      });
+      queueAdminOverrideForEdit(
+        'ALREADY DRAFTED!',
+        `${player.full_name} is already on another pick. Admin can override and assign anyway.`
+      );
       return;
     }
 
@@ -739,11 +832,10 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       }
       const limit = getPositionLimit(normalizedPos);
       if ((counts[normalizedPos] ?? 0) >= limit) {
-        setErrorModal({
-          open: true,
-          title: 'TOO MANY AT THAT POSITION!',
-          message: `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}. What are you even doing?`,
-        });
+        queueAdminOverrideForEdit(
+          'TOO MANY AT THAT POSITION!',
+          `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}. Admin can override and assign anyway.`
+        );
         return;
       }
     }
@@ -1476,6 +1568,33 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
         title={errorModal.title}
         message={errorModal.message}
       />
+      <AlertDialog
+        open={!!adminOverride}
+        onOpenChange={(open) => {
+          if (!open) setAdminOverride(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{adminOverride?.title ?? 'Admin override'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {adminOverride?.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={makePick.isPending || editPick.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={makePick.isPending || editPick.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmAdminOverridePick();
+              }}
+            >
+              {makePick.isPending || editPick.isPending ? 'Applying...' : 'Override and draft'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={!!editingPick}

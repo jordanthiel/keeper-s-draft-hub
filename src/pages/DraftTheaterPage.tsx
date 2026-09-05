@@ -21,6 +21,16 @@ import { DraftViewSwitch } from '@/components/DraftViewSwitch';
 import { DraftBoard } from '@/components/DraftBoard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
@@ -109,6 +119,12 @@ export default function DraftTheaterPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [reveal, setReveal] = useState<DraftRevealPayload | null>(null);
   const [errorModal, setErrorModal] = useState({ open: false, title: '', message: '' });
+  const [adminOverride, setAdminOverride] = useState<{
+    pickId: string;
+    player: Player;
+    title: string;
+    message: string;
+  } | null>(null);
 
   const endsAtRef = useRef<number | null>(null);
   const trackedPickIdRef = useRef<string | null>(null);
@@ -360,21 +376,32 @@ export default function DraftTheaterPage() {
       return;
     }
 
-    if (draftedPlayerIds.includes(player.id)) {
-      setErrorModal({
-        open: true,
-        title: 'ALREADY DRAFTED!',
-        message: `${player.full_name} has already been drafted.`,
+    const queueAdminOverride = (title: string, message: string) => {
+      if (!isAdmin) {
+        setErrorModal({ open: true, title, message });
+        return;
+      }
+      setAdminOverride({
+        pickId: currentPick.id,
+        player,
+        title,
+        message,
       });
+    };
+
+    if (draftedPlayerIds.includes(player.id)) {
+      queueAdminOverride(
+        'ALREADY DRAFTED!',
+        `${player.full_name} has already been drafted.${isAdmin ? ' Admin can override and assign anyway.' : ''}`
+      );
       return;
     }
 
     if (keeperPlayerIds.includes(player.id)) {
-      setErrorModal({
-        open: true,
-        title: "THAT'S A KEEPER!",
-        message: `${player.full_name} is already someone's keeper.`,
-      });
+      queueAdminOverride(
+        "THAT'S A KEEPER!",
+        `${player.full_name} is already someone's keeper.${isAdmin ? ' Admin can override and assign anyway.' : ''}`
+      );
       return;
     }
 
@@ -383,11 +410,10 @@ export default function DraftTheaterPage() {
       const counts = getPositionCounts(currentPick.current_team_id, picks, keepers);
       const limit = getPositionLimit(league, normalizedPos);
       if ((counts[normalizedPos] ?? 0) >= limit) {
-        setErrorModal({
-          open: true,
-          title: 'TOO MANY AT THAT POSITION!',
-          message: `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}.`,
-        });
+        queueAdminOverride(
+          'TOO MANY AT THAT POSITION!',
+          `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}.${isAdmin ? ' Admin can override and pick anyway.' : ''}`
+        );
         return;
       }
     }
@@ -418,6 +444,48 @@ export default function DraftTheaterPage() {
       revealQueueRef.current = [];
       const message = error instanceof Error ? error.message : 'Could not make this pick.';
       setErrorModal({ open: true, title: 'PICK FAILED', message });
+    }
+  };
+
+  const confirmAdminOverridePick = async () => {
+    if (!adminOverride || !league) return;
+    if (!currentPick || currentPick.id !== adminOverride.pickId || !currentTeam) {
+      setAdminOverride(null);
+      setErrorModal({
+        open: true,
+        title: 'PICK MOVED',
+        message: 'The pick on the clock changed. Try selecting the player again.',
+      });
+      return;
+    }
+
+    try {
+      skipDetectRef.current = true;
+      seenPickIdsRef.current?.add(currentPick.id);
+      showReveal({
+        player: adminOverride.player,
+        teamName: currentTeam.name,
+        team: currentTeam,
+        round: currentPick.round,
+        pickNumber: currentPick.pick_number,
+        year: currentYear,
+      });
+      await makePick.mutateAsync({
+        pickId: currentPick.id,
+        playerId: adminOverride.player.id,
+        leagueId: league.id,
+        year: currentYear,
+        asAdmin: true,
+      });
+    } catch (error) {
+      skipDetectRef.current = false;
+      seenPickIdsRef.current?.delete(currentPick.id);
+      setReveal(null);
+      revealQueueRef.current = [];
+      const message = error instanceof Error ? error.message : 'Could not make this pick.';
+      setErrorModal({ open: true, title: 'OVERRIDE FAILED', message });
+    } finally {
+      setAdminOverride(null);
     }
   };
 
@@ -766,6 +834,33 @@ export default function DraftTheaterPage() {
         title={errorModal.title}
         message={errorModal.message}
       />
+      <AlertDialog
+        open={!!adminOverride}
+        onOpenChange={(open) => {
+          if (!open) setAdminOverride(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{adminOverride?.title ?? 'Admin override'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {adminOverride?.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={makePick.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={makePick.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmAdminOverridePick();
+              }}
+            >
+              {makePick.isPending ? 'Applying...' : 'Override and draft'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

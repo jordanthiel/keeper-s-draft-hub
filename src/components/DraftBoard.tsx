@@ -756,10 +756,11 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       const bTeam = teams.find(t => t.id === b.original_team_id);
       if (!aTeam || !bTeam) return 0;
       
-      // Snake: odd rounds ascending, even rounds descending
-      return roundNum % 2 === 1 
-        ? aTeam.draft_position - bTeam.draft_position
-        : bTeam.draft_position - aTeam.draft_position;
+      const isSnake = (league.draft_type ?? 'snake') === 'snake';
+      if (isSnake && roundNum % 2 === 0) {
+        return bTeam.draft_position - aTeam.draft_position;
+      }
+      return aTeam.draft_position - bTeam.draft_position;
     });
   });
 

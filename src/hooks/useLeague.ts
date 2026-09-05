@@ -498,6 +498,39 @@ export function useUpdateLeague() {
   });
 }
 
+export function useRefreshDraftOrderType() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      leagueId,
+      year,
+      draftType,
+    }: {
+      leagueId: string;
+      year: number;
+      draftType: League['draft_type'];
+    }) => {
+      const { error } = await supabase.rpc('refresh_draft_order_type', {
+        p_league_id: leagueId,
+        p_year: year,
+        p_draft_type: draftType,
+      });
+      if (error) throw error;
+      return { leagueId, year };
+    },
+    onSuccess: ({ leagueId, year }) => {
+      queryClient.invalidateQueries({ queryKey: ['draft_picks', leagueId, year] });
+      queryClient.invalidateQueries({ queryKey: ['league', leagueId] });
+      toast({ title: 'Draft order refreshed' });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not refresh draft order', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 export function useCreateTeam() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -816,6 +816,14 @@ export type Database = {
         Args: { p_league_id: string; p_user_id: string }
         Returns: undefined
       }
+      refresh_draft_order_type: {
+        Args: {
+          p_league_id: string
+          p_year?: number
+          p_draft_type: string
+        }
+        Returns: undefined
+      }
       reset_draft_board: {
         Args: { p_league_id: string; p_year?: number }
         Returns: undefined

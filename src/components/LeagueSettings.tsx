@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { League } from '@/lib/types';
-import { useUpdateLeague } from '@/hooks/useLeague';
+import { useDraftPicks, useRefreshDraftOrderType, useUpdateLeague } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { AuthDialog } from '@/components/AuthDialog';
 import { ResetDraftDialog } from '@/components/ResetDraftDialog';
@@ -18,7 +18,10 @@ interface LeagueSettingsProps {
 }
 
 export function LeagueSettings({ league }: LeagueSettingsProps) {
+  const currentYear = new Date().getFullYear();
+  const { data: picks = [] } = useDraftPicks(league.id, currentYear);
   const updateLeague = useUpdateLeague();
+  const refreshDraftOrderType = useRefreshDraftOrderType();
   const { canEditSettings, isAdmin } = useLeaguePermissions(league);
   const [formData, setFormData] = useState({
     name: league.name,
@@ -40,10 +43,18 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEditSettings) return;
+    const draftTypeChanged = formData.draft_type !== (league.draft_type ?? 'snake');
     await updateLeague.mutateAsync({
       id: league.id,
       ...formData,
     });
+    if (draftTypeChanged && picks.length > 0) {
+      await refreshDraftOrderType.mutateAsync({
+        leagueId: league.id,
+        year: currentYear,
+        draftType: formData.draft_type,
+      });
+    }
   };
 
   if (!isAdmin) {
@@ -237,9 +248,13 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
           </CardContent>
         </Card>
 
-        <Button type="submit" size="lg" disabled={updateLeague.isPending}>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={updateLeague.isPending || refreshDraftOrderType.isPending}
+        >
           <Save className="h-4 w-4 mr-2" />
-          {updateLeague.isPending ? 'Saving...' : 'Save Settings'}
+          {updateLeague.isPending || refreshDraftOrderType.isPending ? 'Saving...' : 'Save Settings'}
         </Button>
       </form>
 

@@ -11,6 +11,7 @@ import {
   useInitializeDraftPicks,
   usePickSwaps,
   useAdminEditPick,
+  useRefreshDraftOrderType,
   buildSlotOwnershipMap,
 } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
@@ -105,6 +106,7 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
   const makePick = useMakePick();
   const editPick = useAdminEditPick();
   const makeMockPick = useMakeMockPick();
+  const refreshDraftOrderType = useRefreshDraftOrderType();
   const updateLeague = useUpdateLeague();
   const initializeMock = useInitializeMockDraft();
   const initializePicks = useInitializeDraftPicks();
@@ -838,6 +840,22 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
     });
   };
 
+  const handleRestartSequence = async () => {
+    if (mockMode) {
+      setErrorModal({
+        open: true,
+        title: 'LIVE DRAFT ONLY',
+        message: 'Restart sequence currently applies to the live draft board only.',
+      });
+      return;
+    }
+    await refreshDraftOrderType.mutateAsync({
+      leagueId: league.id,
+      year: currentYear,
+      draftType: league.draft_type ?? 'snake',
+    });
+  };
+
   const rootClass = fill ? 'flex h-full min-h-0 flex-col gap-3' : 'space-y-6';
   const boardScrollClass = fill
     ? 'relative z-0 min-h-0 flex-1 overflow-auto rounded-lg border border-border'
@@ -1144,6 +1162,19 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
               <Button onClick={finalizeDraft} variant="outline" size="lg" disabled={autoDraftRunning}>
                 <Flag className="mr-2 h-5 w-5" />
                 Finalize draft
+              </Button>
+            )}
+
+            {isAdmin && boardReady && (
+              <Button
+                onClick={handleRestartSequence}
+                variant="outline"
+                size="lg"
+                disabled={refreshDraftOrderType.isPending}
+                title="Rebuild remaining draft sequence without clearing picks"
+              >
+                <RotateCcw className="mr-2 h-5 w-5" />
+                {refreshDraftOrderType.isPending ? 'Restarting sequence...' : 'Restart Sequence'}
               </Button>
             )}
 

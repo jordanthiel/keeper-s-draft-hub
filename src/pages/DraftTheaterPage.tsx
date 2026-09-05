@@ -38,36 +38,44 @@ import {
 const REVEAL_MS = 2800;
 const NEXT_UP_COUNT = 5;
 
-function getPositionCounts(teamId: string, picks: DraftPick[], keepers: Keeper[], teams: Team[]) {
+function normalizePosition(position: string | null | undefined): string | null {
+  if (!position) return null;
+  const normalized = position.trim().toUpperCase();
+  if (normalized === 'D/ST' || normalized === 'DST') return 'DEF';
+  if (normalized === 'PK') return 'K';
+  return normalized;
+}
+
+function getPositionCounts(teamId: string, picks: DraftPick[], keepers: Keeper[]) {
   const counts: Record<string, number> = {
     QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0, DL: 0, LB: 0, DB: 0,
+  };
+  const countedPlayerIds = new Set<string>();
+  const addPosition = (playerId: string | null | undefined, pos: string | null | undefined) => {
+    const normalizedPos = normalizePosition(pos);
+    if (!playerId || !normalizedPos || counts[normalizedPos] === undefined || countedPlayerIds.has(playerId)) return;
+    countedPlayerIds.add(playerId);
+    counts[normalizedPos]++;
   };
 
   picks
     .filter((p) => p.current_team_id === teamId && p.player_id)
-    .forEach((pick) => {
-      const pos = pick.player?.position;
-      if (pos && counts[pos] !== undefined) counts[pos]++;
-    });
+    .forEach((pick) => addPosition(pick.player_id, pick.player?.position));
 
   keepers
-    .filter((k) => {
-      const team = teams.find((t) => t.id === k.team_id);
-      return team?.id === teamId;
-    })
-    .forEach((k) => {
-      const pos = k.player?.position;
-      if (pos && counts[pos] !== undefined) counts[pos]++;
-    });
+    .filter((k) => k.team_id === teamId)
+    .forEach((keeper) => addPosition(keeper.player_id, keeper.player?.position));
 
   return counts;
 }
 
 function getPositionLimit(league: League, position: string) {
-  const slotKey = `${position.toLowerCase()}_slots` as keyof League;
+  const normalizedPos = normalizePosition(position);
+  if (!normalizedPos) return league.bench_slots;
+  const slotKey = `${normalizedPos.toLowerCase()}_slots` as keyof League;
   const slots = league[slotKey];
-  const base = typeof slots === 'number' ? slots : 0;
-  return base + league.bench_slots;
+  if (typeof slots === 'number') return slots;
+  return league.bench_slots;
 }
 
 function teamRoster(teamId: string, picks: DraftPick[], keepers: Keeper[]) {
@@ -370,14 +378,15 @@ export default function DraftTheaterPage() {
       return;
     }
 
-    if (player.position) {
-      const counts = getPositionCounts(currentPick.current_team_id, picks, keepers, teams);
-      const limit = getPositionLimit(league, player.position);
-      if (counts[player.position] >= limit) {
+    const normalizedPos = normalizePosition(player.position);
+    if (normalizedPos) {
+      const counts = getPositionCounts(currentPick.current_team_id, picks, keepers);
+      const limit = getPositionLimit(league, normalizedPos);
+      if ((counts[normalizedPos] ?? 0) >= limit) {
         setErrorModal({
           open: true,
           title: 'TOO MANY AT THAT POSITION!',
-          message: `You already have ${counts[player.position]} ${player.position}s and the limit is ${limit}.`,
+          message: `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}.`,
         });
         return;
       }

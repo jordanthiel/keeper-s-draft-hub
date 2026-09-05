@@ -56,6 +56,14 @@ const MAX_COL_WIDTH = 320;
 const COL_GAP = 4; // gap-1
 const AUTO_DRAFT_DELAY_MS = 450;
 
+function normalizePosition(position: string | null | undefined): string | null {
+  if (!position) return null;
+  const normalized = position.trim().toUpperCase();
+  if (normalized === 'D/ST' || normalized === 'DST') return 'DEF';
+  if (normalized === 'PK') return 'K';
+  return normalized;
+}
+
 function colWidthsStorageKey(leagueId: string) {
   return `draft-col-widths-${leagueId}`;
 }
@@ -282,8 +290,7 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
     return () => clearInterval(interval);
   }, [isTimerRunning, draftStatus, league.draft_time_seconds, league.id, currentPick?.id, mockMode]);
 
-  const getPositionCounts = (teamId: string) => {
-    const teamPicks = picks.filter(p => p.current_team_id === teamId && p.player_id);
+  const buildTeamPositionCounts = (teamId: string, board: DraftPick[]) => {
     const counts: Record<string, number> = {
       QB: 0,
       RB: 0,
@@ -295,34 +302,38 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       LB: 0,
       DB: 0,
     };
-    
-    teamPicks.forEach(pick => {
-      const pos = pick.player?.position;
-      if (pos && counts[pos] !== undefined) {
-        counts[pos]++;
-      }
-    });
 
-    // Add keepers
-    keepers.filter(k => {
-      const team = teams.find(t => t.id === k.team_id);
-      return team?.id === teamId;
-    }).forEach(k => {
-      const pos = k.player?.position;
-      if (pos && counts[pos] !== undefined) {
-        counts[pos]++;
-      }
-    });
+    // Prevent accidental double-counting if a keeper appears in both sources.
+    const countedPlayerIds = new Set<string>();
+    const addPosition = (playerId: string | null | undefined, pos: string | null | undefined) => {
+      const normalizedPos = normalizePosition(pos);
+      if (!playerId || !normalizedPos || counts[normalizedPos] === undefined || countedPlayerIds.has(playerId)) return;
+      countedPlayerIds.add(playerId);
+      counts[normalizedPos]++;
+    };
+
+    board
+      .filter((p) => p.current_team_id === teamId && p.player_id)
+      .forEach((pick) => addPosition(pick.player_id, pick.player?.position));
+
+    keepers
+      .filter((k) => k.team_id === teamId)
+      .forEach((keeper) => addPosition(keeper.player_id, keeper.player?.position));
 
     return counts;
   };
 
+  const getPositionCounts = (teamId: string) => buildTeamPositionCounts(teamId, picks);
+
   const getPositionLimit = (position: string): number => {
-    const slotKey = `${position.toLowerCase()}_slots` as keyof League;
+    const normalizedPos = normalizePosition(position);
+    if (!normalizedPos) return league.bench_slots;
+    const slotKey = `${normalizedPos.toLowerCase()}_slots` as keyof League;
     const slots = league[slotKey];
-    // Offense/DEF use configured slots; IDP (DL/LB/DB) and unknown use bench only
-    const base = typeof slots === 'number' ? slots : 0;
-    return base + league.bench_slots;
+    // Position limit is the configured slot count for that position.
+    // Unknown positions fall back to bench capacity to avoid false blocks.
+    if (typeof slots === 'number') return slots;
+    return league.bench_slots;
   };
 
   const handleDraft = async (player: Player) => {
@@ -373,16 +384,17 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       return;
     }
 
-    // Position limits for live drafts only
-    if (!mockMode && player.position) {
+    // Position limit — same modal pattern as ALREADY DRAFTED
+    const normalizedPos = normalizePosition(player.position);
+    if (normalizedPos) {
       const counts = getPositionCounts(currentPick.current_team_id);
-      const limit = getPositionLimit(player.position);
-      
-      if (counts[player.position] >= limit) {
+      const limit = getPositionLimit(normalizedPos);
+
+      if ((counts[normalizedPos] ?? 0) >= limit) {
         setErrorModal({
           open: true,
           title: "TOO MANY AT THAT POSITION!",
-          message: `You already have ${counts[player.position]} ${player.position}s and the limit is ${limit}. What are you even doing?`,
+          message: `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}. What are you even doing?`,
         });
         return;
       }
@@ -576,24 +588,8 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
     autoDraftRef.current = false;
   }, []);
 
-  const positionCountsForBoard = (teamId: string, board: DraftPick[]) => {
-    const counts: Record<string, number> = {
-      QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0, DL: 0, LB: 0, DB: 0,
-    };
-    board
-      .filter((p) => p.current_team_id === teamId && p.player_id)
-      .forEach((pick) => {
-        const pos = pick.player?.position;
-        if (pos && counts[pos] !== undefined) counts[pos]++;
-      });
-    keepers
-      .filter((k) => k.team_id === teamId)
-      .forEach((k) => {
-        const pos = k.player?.position;
-        if (pos && counts[pos] !== undefined) counts[pos]++;
-      });
-    return counts;
-  };
+  const positionCountsForBoard = (teamId: string, board: DraftPick[]) =>
+    buildTeamPositionCounts(teamId, board);
 
   const fetchBestAvailablePlayer = async (
     takenIds: Set<string>,
@@ -609,10 +605,11 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
 
     for (const player of (data ?? []) as Player[]) {
       if (takenIds.has(player.id)) continue;
-      if (!mockMode && player.position) {
+      const normalizedPos = normalizePosition(player.position);
+      if (normalizedPos) {
         const counts = positionCountsForBoard(teamId, board);
-        const limit = getPositionLimit(player.position);
-        const have = counts[player.position] ?? 0;
+        const limit = getPositionLimit(normalizedPos);
+        const have = counts[normalizedPos] ?? 0;
         if (have >= limit) continue;
       }
       return player;
@@ -729,6 +726,26 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
         message: `${player.full_name} is already on another pick.`,
       });
       return;
+    }
+
+    // Position limit — same notice pattern as ALREADY DRAFTED
+    const normalizedPos = normalizePosition(player.position);
+    if (normalizedPos) {
+      const counts = { ...getPositionCounts(editingPick.current_team_id) };
+      // Don't double-count the player currently on the pick being edited
+      const existingPos = normalizePosition(editingPick.player?.position);
+      if (editingPick.player_id && existingPos && counts[existingPos] !== undefined) {
+        counts[existingPos] = Math.max(0, counts[existingPos] - 1);
+      }
+      const limit = getPositionLimit(normalizedPos);
+      if ((counts[normalizedPos] ?? 0) >= limit) {
+        setErrorModal({
+          open: true,
+          title: 'TOO MANY AT THAT POSITION!',
+          message: `You already have ${counts[normalizedPos] ?? 0} ${normalizedPos}s and the limit is ${limit}. What are you even doing?`,
+        });
+        return;
+      }
     }
 
     await editPick.mutateAsync({

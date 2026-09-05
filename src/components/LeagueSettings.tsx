@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Settings, Save, Shield, TriangleAlert, Copy } from 'lucide-react';
 
 interface LeagueSettingsProps {
@@ -21,6 +22,7 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
   const { canEditSettings, isAdmin } = useLeaguePermissions(league);
   const [formData, setFormData] = useState({
     name: league.name,
+    draft_type: league.draft_type ?? 'snake',
     num_teams: league.num_teams,
     num_rounds: league.num_rounds,
     num_keepers: league.num_keepers,
@@ -117,6 +119,21 @@ export function LeagueSettings({ league }: LeagueSettingsProps) {
                 value={formData.num_keepers}
                 onChange={(e) => handleChange('num_keepers', parseInt(e.target.value) || 0)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Draft Type</Label>
+              <Select
+                value={formData.draft_type}
+                onValueChange={(value) => handleChange('draft_type', value as 'snake' | 'classic')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select draft type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="snake">Snake</SelectItem>
+                  <SelectItem value="classic">Classic</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Draft Time (seconds)</Label>

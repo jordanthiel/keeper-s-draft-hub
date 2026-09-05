@@ -271,6 +271,7 @@ export type Database = {
           current_pick: number | null
           current_round: number | null
           def_slots: number
+          draft_type: string
           draft_status: string
           draft_time_seconds: number
           flex_slots: number
@@ -293,6 +294,7 @@ export type Database = {
           current_pick?: number | null
           current_round?: number | null
           def_slots?: number
+          draft_type?: string
           draft_status?: string
           draft_time_seconds?: number
           flex_slots?: number
@@ -315,6 +317,7 @@ export type Database = {
           current_pick?: number | null
           current_round?: number | null
           def_slots?: number
+          draft_type?: string
           draft_status?: string
           draft_time_seconds?: number
           flex_slots?: number
@@ -684,6 +687,7 @@ export type Database = {
           current_pick: number | null
           current_round: number | null
           def_slots: number
+          draft_type: string
           draft_status: string
           draft_time_seconds: number
           flex_slots: number

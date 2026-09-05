@@ -1,6 +1,7 @@
 export interface League {
   id: string;
   name: string;
+  draft_type: 'snake' | 'classic';
   num_teams: number;
   num_rounds: number;
   num_keepers: number;

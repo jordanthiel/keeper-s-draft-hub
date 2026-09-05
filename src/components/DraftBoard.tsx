@@ -833,6 +833,7 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       teams: orderedTeams,
       numRounds: league.num_rounds,
       year: currentYear,
+      draftType: league.draft_type,
     });
   };
 

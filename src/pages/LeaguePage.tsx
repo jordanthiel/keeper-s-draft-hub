@@ -95,6 +95,7 @@ export default function LeaguePage() {
       teams: orderedTeams,
       numRounds: league.num_rounds,
       year: currentYear,
+      draftType: league.draft_type,
     });
   };
 

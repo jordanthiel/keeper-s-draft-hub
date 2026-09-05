@@ -860,11 +860,12 @@ export function useInitializeDraftPicks() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ leagueId, teams, numRounds, year }: { 
+    mutationFn: async ({ leagueId, teams, numRounds, year, draftType }: {
       leagueId: string; 
       teams: Team[]; 
       numRounds: number;
       year: number;
+      draftType?: League['draft_type'];
     }) => {
       // Delete existing picks for this year
       await supabase
@@ -877,9 +878,10 @@ export function useInitializeDraftPicks() {
       const picks: { league_id: string; original_team_id: string; current_team_id: string; round: number; pick_number: number; year: number; is_keeper: boolean }[] = [];
       
       for (let round = 1; round <= numRounds; round++) {
-        const orderedTeams = round % 2 === 1 
-          ? [...teams].sort((a, b) => a.draft_position - b.draft_position)
-          : [...teams].sort((a, b) => b.draft_position - a.draft_position);
+        const useSnakeRound = (draftType ?? 'snake') === 'snake' && round % 2 === 0;
+        const orderedTeams = useSnakeRound
+          ? [...teams].sort((a, b) => b.draft_position - a.draft_position)
+          : [...teams].sort((a, b) => a.draft_position - b.draft_position);
         
         orderedTeams.forEach((team, idx) => {
           picks.push({

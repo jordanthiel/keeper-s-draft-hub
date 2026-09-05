@@ -820,7 +820,7 @@ export type Database = {
         Args: {
           p_league_id: string
           p_year?: number
-          p_draft_type: string
+          p_draft_type?: string | null
         }
         Returns: undefined
       }

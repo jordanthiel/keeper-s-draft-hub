@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   useAllKeepers,
+  buildSlotOwnershipMap,
   useDraftPicks,
   useLeague,
   useMakePick,
+  usePickSwaps,
   useTeams,
   useUpdateLeague,
 } from '@/hooks/useLeague';
@@ -99,6 +101,7 @@ export default function DraftTheaterPage() {
   const { data: teams = [], isLoading: teamsLoading } = useTeams(id);
   const { data: picks = [], refetch } = useDraftPicks(id, currentYear);
   const { data: keepers = [] } = useAllKeepers(id);
+  const { data: pickSwaps = [] } = usePickSwaps(id, currentYear);
   const { isAdmin, canStartDraft, accessedTeamId } = useLeaguePermissions(league);
   const { getAccessCode } = useTeamAccess();
   const makePick = useMakePick();
@@ -130,6 +133,17 @@ export default function DraftTheaterPage() {
   const draftedPlayerIds = picks.filter((p) => p.player_id).map((p) => p.player_id!);
   const keeperPlayerIds = keepers.map((k) => k.player_id).filter(Boolean);
   const draftStatus = league?.draft_status ?? 'not_started';
+  const previewOwnership = useMemo(
+    () =>
+      buildSlotOwnershipMap({
+        teams,
+        numRounds: league?.num_rounds ?? 0,
+        year: currentYear,
+        swaps: pickSwaps,
+      }),
+    [teams, league?.num_rounds, currentYear, pickSwaps]
+  );
+
   const draftInteractive =
     draftStatus === 'in_progress' || (draftStatus === 'completed' && !!currentPick);
   const showTimer = draftStatus === 'in_progress' && !!currentPick;
@@ -592,7 +606,12 @@ export default function DraftTheaterPage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Round {currentPick.round} · Pick {currentPick.pick_number}
               </p>
-              {currentPick.original_team_id !== currentPick.current_team_id && (
+              {(() => {
+                const ownerId =
+                  previewOwnership.get(`${currentPick.original_team_id}:${currentPick.round}`) ??
+                  currentPick.original_team_id;
+                return ownerId !== currentPick.original_team_id;
+              })() && (
                 <p className="mt-1 text-xs text-accent">
                   Traded pick
                 </p>

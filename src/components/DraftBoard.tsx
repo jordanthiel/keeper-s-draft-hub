@@ -852,7 +852,7 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
     await refreshDraftOrderType.mutateAsync({
       leagueId: league.id,
       year: currentYear,
-      draftType: league.draft_type ?? 'snake',
+      draftType: null,
     });
   };
 

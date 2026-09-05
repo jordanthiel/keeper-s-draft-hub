@@ -510,12 +510,12 @@ export function useRefreshDraftOrderType() {
     }: {
       leagueId: string;
       year: number;
-      draftType: League['draft_type'];
+      draftType?: League['draft_type'] | null;
     }) => {
       const { error } = await supabase.rpc('refresh_draft_order_type', {
         p_league_id: leagueId,
         p_year: year,
-        p_draft_type: draftType,
+        p_draft_type: draftType ?? null,
       });
       if (error) throw error;
       return { leagueId, year };

@@ -972,6 +972,76 @@ export function useMakePick() {
   });
 }
 
+/** Admin-only: set or clear a player on any live or mock pick (fix mistakes anytime). */
+export function useAdminEditPick() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      pickId,
+      playerId,
+      leagueId,
+      year,
+      mock,
+      player,
+    }: {
+      pickId: string;
+      playerId: string | null;
+      leagueId: string;
+      year: number;
+      mock?: boolean;
+      player?: Player | null;
+    }) => {
+      if (mock) {
+        const { data, error } = await supabase.rpc('admin_set_mock_pick_player', {
+          p_pick_id: pickId,
+          p_player_id: playerId,
+        });
+        if (error) throw error;
+
+        queryClient.setQueryData<DraftPick[]>(
+          ['mock_draft_picks', leagueId, year],
+          (previous) =>
+            (previous ?? []).map((p) =>
+              p.id === pickId
+                ? {
+                    ...p,
+                    player_id: playerId,
+                    player: playerId ? player ?? p.player : undefined,
+                    picked_at: playerId ? new Date().toISOString() : null,
+                  }
+                : p
+            )
+        );
+
+        return { pick: data, leagueId, year, mock: true as const };
+      }
+
+      const { data, error } = await supabase.rpc('admin_set_draft_pick_player', {
+        p_pick_id: pickId,
+        p_player_id: playerId,
+      });
+      if (error) throw error;
+      return { pick: data, leagueId, year, mock: false as const };
+    },
+    onSuccess: (data) => {
+      if (data.mock) {
+        queryClient.invalidateQueries({ queryKey: ['mock_draft_picks', data.leagueId, data.year] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['draft_picks', data.leagueId, data.year] });
+        queryClient.invalidateQueries({ queryKey: ['league', data.leagueId] });
+      }
+      toast({
+        title: data.pick?.player_id ? 'Pick updated' : 'Pick cleared',
+      });
+    },
+    onError: (error) => {
+      toast({ title: 'Could not edit pick', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 export function useExecutePickSwap() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

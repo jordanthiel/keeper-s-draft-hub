@@ -8,6 +8,7 @@ import { TeamAccessProvider } from "@/contexts/TeamAccessContext";
 import Index from "./pages/Index";
 import LeaguePage from "./pages/LeaguePage";
 import TeamPage from "./pages/TeamPage";
+import DraftTheaterPage from "./pages/DraftTheaterPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/league/:leagueId/team/:teamId" element={<TeamPage />} />
+              <Route path="/league/:id/draft" element={<DraftTheaterPage />} />
               <Route path="/league/:id" element={<LeaguePage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

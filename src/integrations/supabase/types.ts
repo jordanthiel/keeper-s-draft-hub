@@ -610,6 +610,38 @@ export type Database = {
           created_at: string
         }[]
       }
+      admin_set_draft_pick_player: {
+        Args: { p_pick_id: string; p_player_id?: string | null }
+        Returns: {
+          created_at: string
+          current_team_id: string
+          id: string
+          is_keeper: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number: number | null
+          picked_at: string | null
+          player_id: string | null
+          round: number
+          year: number
+        }
+      }
+      admin_set_mock_pick_player: {
+        Args: { p_pick_id: string; p_player_id?: string | null }
+        Returns: {
+          created_at: string
+          current_team_id: string
+          id: string
+          is_keeper: boolean | null
+          league_id: string
+          original_team_id: string
+          pick_number: number | null
+          picked_at: string | null
+          player_id: string | null
+          round: number
+          year: number
+        }
+      }
       apply_pick_swaps: {
         Args: { p_league_id: string; p_year: number }
         Returns: number

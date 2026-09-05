@@ -12,6 +12,7 @@ interface PlayerSearchProps {
   autoFocus?: boolean;
   /** Render results in-flow (needed inside dialogs so the list isn't clipped). */
   inline?: boolean;
+  inputClassName?: string;
 }
 
 export function PlayerSearch({
@@ -20,6 +21,7 @@ export function PlayerSearch({
   placeholder = 'Search players...',
   autoFocus = false,
   inline = false,
+  inputClassName,
 }: PlayerSearchProps) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -89,7 +91,7 @@ export function PlayerSearch({
     <div
       className={cn(
         'max-h-64 overflow-auto rounded-lg border border-border bg-card shadow-xl',
-        !inline && 'absolute z-[60] w-full mt-1 animate-slide-in',
+        !inline && 'absolute z-[100] w-full mt-1 animate-slide-in',
         inline && 'mt-2'
       )}
     >
@@ -138,7 +140,7 @@ export function PlayerSearch({
   return (
     <div
       ref={containerRef}
-      className={cn('relative w-full', showResults && !inline && 'z-50')}
+      className={cn('relative w-full', showResults && !inline && 'z-[100]')}
     >
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -152,7 +154,7 @@ export function PlayerSearch({
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="pl-10 bg-secondary border-border focus:ring-primary"
+          className={cn('pl-10 bg-secondary border-border focus:ring-primary', inputClassName)}
           autoComplete="off"
         />
       </div>

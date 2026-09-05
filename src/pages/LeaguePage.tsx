@@ -3,6 +3,7 @@ import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useLeague, useTeams, useInitializeDraftPicks, useDraftPicks } from '@/hooks/useLeague';
 import { useLeaguePermissions } from '@/hooks/useLeaguePermissions';
 import { DraftBoard } from '@/components/DraftBoard';
+import { DraftViewSwitch } from '@/components/DraftViewSwitch';
 import { TeamManager } from '@/components/TeamManager';
 import { LeagueSettings } from '@/components/LeagueSettings';
 import { PickTrader } from '@/components/PickTrader';
@@ -128,6 +129,9 @@ export default function LeaguePage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {picks.length > 0 && (
+                <DraftViewSwitch leagueId={league.id} current="board" />
+              )}
               {accessedTeamId && (
                 <Link to={`/league/${league.id}/team/${accessedTeamId}`}>
                   <Button variant="secondary" size="sm">

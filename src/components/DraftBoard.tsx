@@ -1314,8 +1314,10 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
                   if (!pick) return <div key={team.id} className="min-w-0 p-2 bg-muted/20 border-2 border-transparent" />;
 
                   const isCurrent = currentPick?.id === pick.id;
-                  const isTraded = pick.current_team_id !== pick.original_team_id;
-                  const draftedByTeam = isTraded ? teams.find(t => t.id === pick.current_team_id) : null;
+                  const tradedOwnerId =
+                    previewOwnership.get(`${pick.original_team_id}:${pick.round}`) ?? pick.original_team_id;
+                  const isTraded = tradedOwnerId !== pick.original_team_id;
+                  const draftedByTeam = isTraded ? teams.find(t => t.id === tradedOwnerId) : null;
 
                   return (
                     <div

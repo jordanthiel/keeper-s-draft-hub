@@ -224,21 +224,20 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
     if (saved?.pickId === currentPick.id) {
       if (saved.isRunning && saved.endsAt) {
         const remaining = Math.max(0, Math.ceil((saved.endsAt - Date.now()) / 1000));
-        endsAtRef.current = saved.endsAt;
+        endsAtRef.current = remaining > 0 ? saved.endsAt : null;
         setTimeLeft(remaining);
         setIsTimerRunning(remaining > 0);
         if (remaining <= 0) {
           saveClock(league.id, {
             pickId: currentPick.id,
             endsAt: null,
-            remainingSeconds: league.draft_time_seconds,
+            remainingSeconds: 0,
             isRunning: false,
           }, mockMode);
-          setTimeLeft(league.draft_time_seconds);
         }
       } else {
         endsAtRef.current = null;
-        setTimeLeft(saved.remainingSeconds);
+        setTimeLeft(Math.max(0, saved.remainingSeconds));
         setIsTimerRunning(false);
       }
       return;
@@ -270,11 +269,11 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
       if (remaining <= 0) {
         setIsTimerRunning(false);
         endsAtRef.current = null;
-        setTimeLeft(league.draft_time_seconds);
+        setTimeLeft(0);
         saveClock(league.id, {
           pickId: currentPick.id,
           endsAt: null,
-          remainingSeconds: league.draft_time_seconds,
+          remainingSeconds: 0,
           isRunning: false,
         }, mockMode);
       }
@@ -529,14 +528,16 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
   };
 
   const resumeDraft = () => {
-    const endsAt = Date.now() + timeLeft * 1000;
+    const seconds = timeLeft > 0 ? timeLeft : league.draft_time_seconds;
+    const endsAt = Date.now() + seconds * 1000;
     endsAtRef.current = endsAt;
+    setTimeLeft(seconds);
     setIsTimerRunning(true);
     if (currentPick) {
       saveClock(league.id, {
         pickId: currentPick.id,
         endsAt,
-        remainingSeconds: timeLeft,
+        remainingSeconds: seconds,
         isRunning: true,
       }, mockMode);
     }
@@ -1130,7 +1131,7 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
                 ) : (
                   <Button onClick={resumeDraft} size="lg" className="glow-primary" disabled={autoDraftRunning}>
                     <Play className="mr-2 h-5 w-5" />
-                    Resume
+                    {timeLeft <= 0 ? 'Start' : 'Resume'}
                   </Button>
                 )}
                 <Button onClick={resetTimer} variant="outline" size="lg" disabled={autoDraftRunning}>
@@ -1194,7 +1195,11 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
 
               <div className={cn(
                 "flex items-center gap-2 px-6 py-3 rounded-lg font-display text-4xl",
-                timeLeft <= 30 ? "bg-destructive/20 text-destructive animate-pulse" : "bg-primary/20 text-primary"
+                timeLeft <= 0
+                  ? "bg-destructive/30 text-destructive"
+                  : timeLeft <= 30
+                    ? "bg-destructive/20 text-destructive animate-pulse"
+                    : "bg-primary/20 text-primary"
               )}>
                 <Clock className="h-8 w-8" />
                 {formatTime(timeLeft)}

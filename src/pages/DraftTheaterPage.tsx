@@ -28,7 +28,9 @@ import {
   Clock,
   Maximize2,
   Minimize2,
+  Pause,
   Play,
+  RotateCcw,
   Star,
   Users,
 } from 'lucide-react';
@@ -250,21 +252,20 @@ export default function DraftTheaterPage() {
     if (saved?.pickId === currentPick.id) {
       if (saved.isRunning && saved.endsAt) {
         const remaining = Math.max(0, Math.ceil((saved.endsAt - Date.now()) / 1000));
-        endsAtRef.current = saved.endsAt;
+        endsAtRef.current = remaining > 0 ? saved.endsAt : null;
         setTimeLeft(remaining);
         setIsTimerRunning(remaining > 0);
         if (remaining <= 0) {
           saveClock(league.id, {
             pickId: currentPick.id,
             endsAt: null,
-            remainingSeconds: league.draft_time_seconds,
+            remainingSeconds: 0,
             isRunning: false,
           });
-          setTimeLeft(league.draft_time_seconds);
         }
       } else {
         endsAtRef.current = null;
-        setTimeLeft(saved.remainingSeconds);
+        setTimeLeft(Math.max(0, saved.remainingSeconds));
         setIsTimerRunning(false);
       }
       return;
@@ -293,11 +294,11 @@ export default function DraftTheaterPage() {
       if (remaining <= 0) {
         setIsTimerRunning(false);
         endsAtRef.current = null;
-        setTimeLeft(league.draft_time_seconds);
+        setTimeLeft(0);
         saveClock(league.id, {
           pickId: currentPick.id,
           endsAt: null,
-          remainingSeconds: league.draft_time_seconds,
+          remainingSeconds: 0,
           isRunning: false,
         });
       }
@@ -421,6 +422,56 @@ export default function DraftTheaterPage() {
     });
   };
 
+  const pauseTimer = () => {
+    if (!league || !currentPick) return;
+    setIsTimerRunning(false);
+    endsAtRef.current = null;
+    saveClock(league.id, {
+      pickId: currentPick.id,
+      endsAt: null,
+      remainingSeconds: timeLeft,
+      isRunning: false,
+    });
+  };
+
+  const startTimer = () => {
+    if (!league || !currentPick) return;
+    const seconds = timeLeft > 0 ? timeLeft : league.draft_time_seconds;
+    const endsAt = Date.now() + seconds * 1000;
+    endsAtRef.current = endsAt;
+    setTimeLeft(seconds);
+    setIsTimerRunning(true);
+    saveClock(league.id, {
+      pickId: currentPick.id,
+      endsAt,
+      remainingSeconds: seconds,
+      isRunning: true,
+    });
+  };
+
+  const resetTimer = () => {
+    if (!league || !currentPick) return;
+    setTimeLeft(league.draft_time_seconds);
+    if (isTimerRunning) {
+      const endsAt = Date.now() + league.draft_time_seconds * 1000;
+      endsAtRef.current = endsAt;
+      saveClock(league.id, {
+        pickId: currentPick.id,
+        endsAt,
+        remainingSeconds: league.draft_time_seconds,
+        isRunning: true,
+      });
+    } else {
+      endsAtRef.current = null;
+      saveClock(league.id, {
+        pickId: currentPick.id,
+        endsAt: null,
+        remainingSeconds: league.draft_time_seconds,
+        isRunning: false,
+      });
+    }
+  };
+
   if (leagueLoading || teamsLoading) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-background">
@@ -467,16 +518,35 @@ export default function DraftTheaterPage() {
         </div>
 
         {showTimer && currentPick && (
-          <div
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-1.5 font-display text-3xl sm:text-4xl',
-              timeLeft <= 30
-                ? 'bg-destructive/20 text-destructive animate-pulse'
-                : 'bg-primary/15 text-primary'
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-4 py-1.5 font-display text-3xl sm:text-4xl',
+                timeLeft <= 0
+                  ? 'bg-destructive/30 text-destructive'
+                  : timeLeft <= 30
+                    ? 'bg-destructive/20 text-destructive animate-pulse'
+                    : 'bg-primary/15 text-primary'
+              )}
+            >
+              <Clock className="h-6 w-6 sm:h-7 sm:w-7" />
+              {formatClock(timeLeft)}
+            </div>
+            {isTimerRunning ? (
+              <Button variant="secondary" size="sm" onClick={pauseTimer}>
+                <Pause className="mr-2 h-4 w-4" />
+                Pause
+              </Button>
+            ) : (
+              <Button size="sm" className="glow-primary" onClick={startTimer}>
+                <Play className="mr-2 h-4 w-4" />
+                {timeLeft <= 0 ? 'Start' : 'Resume'}
+              </Button>
             )}
-          >
-            <Clock className="h-6 w-6 sm:h-7 sm:w-7" />
-            {formatClock(timeLeft)}
+            <Button variant="outline" size="sm" onClick={resetTimer}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reset
+            </Button>
           </div>
         )}
 

@@ -389,7 +389,10 @@ export function DraftBoard({ league, teams, fill = false, hideViewSwitch = false
     // Position limit — same modal pattern as ALREADY DRAFTED
     const normalizedPos = normalizePosition(player.position);
     if (normalizedPos) {
-      const counts = getPositionCounts(currentPick.current_team_id);
+      const effectiveTeamId =
+        previewOwnership.get(`${currentPick.original_team_id}:${currentPick.round}`) ??
+        currentPick.current_team_id;
+      const counts = getPositionCounts(effectiveTeamId);
       const limit = getPositionLimit(normalizedPos);
 
       if ((counts[normalizedPos] ?? 0) >= limit) {

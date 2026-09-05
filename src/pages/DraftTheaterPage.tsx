@@ -394,7 +394,10 @@ export default function DraftTheaterPage() {
 
     const normalizedPos = normalizePosition(player.position);
     if (normalizedPos) {
-      const counts = getPositionCounts(currentPick.current_team_id, picks, keepers);
+      const effectiveTeamId =
+        previewOwnership.get(`${currentPick.original_team_id}:${currentPick.round}`) ??
+        currentPick.current_team_id;
+      const counts = getPositionCounts(effectiveTeamId, picks, keepers);
       const limit = getPositionLimit(league, normalizedPos);
       if ((counts[normalizedPos] ?? 0) >= limit) {
         setErrorModal({
